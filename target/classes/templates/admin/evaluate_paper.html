@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluate Paper | Admin Dashboard</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-blue: #0061f2;
+            --accent-purple: #6900f2;
+            --success-green: #00ac69;
+            --bg-light: #f2f5f9;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-light);
+            color: #2d3748;
+        }
+
+        .main-container {
+            margin-left: 260px;
+            padding: 40px;
+            max-width: 1200px;
+        }
+
+        /* 8. Total Marks Box (Sticky Top-Right) */
+        .sticky-score-box {
+            position: fixed;
+            top: 30px;
+            right: 40px;
+            z-index: 1000;
+            width: 200px;
+            background: linear-gradient(135deg, var(--primary-blue), var(--accent-purple));
+            color: white;
+            border-radius: 16px;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0, 97, 242, 0.2);
+            text-align: center;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .score-label {
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            opacity: 0.9;
+        }
+
+        .score-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+        }
+
+        /* 3. Header Enhancement */
+        .evaluation-header {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            margin-bottom: 40px;
+            border: 1px solid #eef2f7;
+        }
+
+        .enrollment-highlight {
+            color: var(--primary-blue);
+            font-weight: 800;
+            background: #eef2ff;
+            padding: 4px 12px;
+            border-radius: 8px;
+        }
+
+        /* 2, 4. Question Card UI */
+        .evaluation-card {
+            background: white;
+            border-radius: 20px;
+            padding: 35px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.02);
+            border: 1px solid #f1f3f5;
+            transition: all 0.3s;
+        }
+
+        .evaluation-card:hover {
+            box-shadow: 0 12px 30px rgba(0,0,0,0.04);
+        }
+
+        .q-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 25px;
+        }
+
+        .q-text {
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: #1a202c;
+            line-height: 1.5;
+            flex: 1;
+            padding-right: 20px;
+        }
+
+        .marks-badge {
+            background: #f8fafc;
+            color: #64748b;
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+
+        /* 5. Answer Display Area */
+        .student-answer-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            max-height: 350px;
+            overflow-y: auto;
+            color: #475569;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        /* 6. Assign Marks Section */
+        .marking-panel {
+            background: #fff;
+            border: 1px solid #f1f5f9;
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .marks-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .input-marks {
+            width: 100px;
+            height: 50px;
+            font-size: 1.25rem;
+            font-weight: 800;
+            text-align: center;
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+            color: var(--primary-blue);
+            transition: all 0.2s;
+        }
+
+        .input-marks:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 4px rgba(0, 97, 242, 0.1);
+            outline: none;
+        }
+
+        /* 7. Feedback Section */
+        .feedback-area {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .feedback-area:focus {
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 0 4px rgba(105, 0, 242, 0.05);
+            outline: none;
+        }
+
+        /* Sidebar Toggle Overlay */
+        @media (max-width: 991px) {
+            .main-container { margin-left: 0; padding: 20px; }
+            .sticky-score-box { position: relative; top: 0; right: 0; width: 100%; margin-bottom: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Include Sidebar -->
+    <div th:replace="~{admin/fragments :: sidebar('')}"></div>
+
+    <!-- 8. Sticky Score Box -->
+    <div class="sticky-score-box">
+        <div class="score-label">Total Marks</div>
+        <div class="score-value" id="totalMarksDisplay">0 / 0</div>
+    </div>
+
+    <div class="main-container">
+        <!-- 3. Header Enhancement -->
+        <div class="evaluation-header">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <a th:href="@{/admin/submissions}" class="text-muted text-decoration-none small fw-bold">
+                    <i class="bi bi-arrow-left me-1"></i> BACK TO LIST
+                </a>
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fw-bold">
+                    <i class="bi bi-clock-history me-1"></i> STATUS: PENDING
+                </span>
+            </div>
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h2 class="fw-black mb-1">
+                        Evaluate Paper: <span class="enrollment-highlight" th:text="${submission != null and submission.student != null ? submission.student.enrollmentNo : 'ID'}">23CS001</span>
+                    </h2>
+                    <div class="d-flex gap-3 mt-2 text-muted fw-medium">
+                        <span><i class="bi bi-book me-1"></i> <span th:text="${submission != null and submission.paper != null ? submission.paper.subject : 'Subject'}">Data Structures</span></span>
+                        <span><i class="bi bi-mortarboard me-1"></i> <span th:text="${submission != null and submission.paper != null ? 'Semester ' + submission.paper.semester : 'Sem'}">Sem 1</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form th:action="@{/admin/submit-evaluation}" method="post" id="evaluationForm">
+            <input type="hidden" name="submissionId" th:value="${submission != null ? submission.id : ''}">
+            
+            <div th:if="${answers == null or answers.isEmpty()}" class="alert alert-info border-0 shadow-sm rounded-4">
+                No answers found for this submission.
+            </div>
+
+            <!-- 2. Question Cards List -->
+            <div th:each="answer, iterStat : ${answers}" class="evaluation-card">
+                <!-- 4. Question Card Header -->
+                <div class="q-title-row">
+                    <div class="q-text">
+                        <span class="text-primary me-2">[[${iterStat.count}]].</span>
+                        [[${answer.questionText}]]
+                    </div>
+                    <!-- 1. Automatic Marks Binding -->
+                    <div class="marks-badge">
+                        Max: <span th:text="${answer.maxMarks != null ? answer.maxMarks : (answer.question != null and answer.question.marks != null ? answer.question.marks : 0)}">0</span> Marks
+                    </div>
+                </div>
+
+                <!-- 5. Answer Display Area -->
+                <div class="student-answer-box shadow-sm">
+                    <div class="small text-uppercase fw-extrabold text-muted mb-3 opacity-50">Student's Written Response:</div>
+                    [[${answer.studentAnswer}]]
+                </div>
+                
+                <!-- 6, 7. Marking & Feedback Section -->
+                <div class="marking-panel">
+                    <div class="row g-4 align-items-end">
+                        <div class="col-lg-3">
+                            <label class="form-label small fw-bold text-muted text-uppercase mb-2">Assign Marks</label>
+                            <div class="marks-input-wrapper">
+                                <input type="number" 
+                                       class="input-marks marks-input" 
+                                       th:name="'marks_' + ${answer.id}" 
+                                       min="0" 
+                                       th:max="${answer.maxMarks != null ? answer.maxMarks : (answer.question != null and answer.question.marks != null ? answer.question.marks : 0)}" 
+                                       step="0.5" 
+                                       required 
+                                       th:value="${answer.marksObtained}">
+                                <span class="fs-4 fw-bold text-muted">/</span>
+                                <span class="fs-4 fw-bold text-dark" th:text="${answer.maxMarks != null ? answer.maxMarks : (answer.question != null and answer.question.marks != null ? answer.question.marks : 0)}">0</span>
+                            </div>
+                        </div>
+                        <div class="col-lg-9">
+                            <label class="form-label small fw-bold text-muted text-uppercase mb-2">Internal Feedback</label>
+                            <textarea class="feedback-area" 
+                                      th:name="'feedback_' + ${answer.id}" 
+                                      rows="1"
+                                      placeholder="Enter feedback (optional)" 
+                                      th:text="${answer.feedback}"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-5 mb-5">
+                <button type="submit" class="btn btn-primary btn-lg px-5 py-3 rounded-pill shadow-lg border-0" 
+                        style="background: linear-gradient(to right, var(--primary-blue), var(--accent-purple)); font-weight: 800; letter-spacing: 0.5px;">
+                    <i class="bi bi-check-circle-fill me-2"></i> COMPLETE EVALUATION
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const marksInputs = document.querySelectorAll('.marks-input');
+            const totalMarksDisplay = document.getElementById('totalMarksDisplay');
+            
+            function calculateTotal() {
+                let total = 0;
+                let maxTotalMarks = 0;
+                let isValid = true;
+
+                marksInputs.forEach(input => {
+                    const value = parseFloat(input.value) || 0;
+                    const max = parseFloat(input.getAttribute('max')) || 0;
+                    maxTotalMarks += max;
+                    
+                    if (value > max) {
+                        input.style.borderColor = "#dc3545";
+                        isValid = false;
+                    } else {
+                        input.style.borderColor = "#e2e8f0";
+                        if(input.value !== '') total += value;
+                    }
+                });
+
+                totalMarksDisplay.textContent = `${total} / ${maxTotalMarks}`;
+                return isValid;
+            }
+
+            marksInputs.forEach(input => {
+                input.addEventListener('input', calculateTotal);
+            });
+
+            // Initial calculation
+            calculateTotal();
+
+            document.getElementById('evaluationForm').addEventListener('submit', function(e) {
+                if (!calculateTotal()) {
+                    e.preventDefault();
+                    alert("Validation Error: Assigned marks exceed the maximum limit.");
+                }
+            });
+        });
+    </script>
+</body>
+</html>
