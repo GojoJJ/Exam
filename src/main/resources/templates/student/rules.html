@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rules and Regulations - Lok Jagruti Kendra University</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #fcfaf2; /* White cream background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 2rem 0;
+        }
+        .rules-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f0f0f0;
+        }
+        .header-section {
+            text-align: center;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .logo-img {
+            max-width: 150px;
+            margin-bottom: 1rem;
+        }
+        .exam-type-section {
+            margin-top: 1.5rem;
+        }
+        .exam-type-heading {
+            font-size: 1.15rem;
+            color: #495057;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        .custom-radio-group {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+        }
+        .custom-radio {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            transition: background-color 0.3s ease;
+        }
+        .custom-radio:hover {
+            background-color: #f8f9fa;
+        }
+        .custom-radio input[type="radio"] {
+            display: none;
+        }
+        .radio-circle {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #adb5bd;
+            border-radius: 50%;
+            margin-right: 10px;
+            position: relative;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .radio-circle::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #0d6efd;
+            transform: scale(0);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .custom-radio input[type="radio"]:checked + .radio-circle {
+            border-color: #0d6efd;
+        }
+        .custom-radio input[type="radio"]:checked + .radio-circle::after {
+            transform: scale(1);
+        }
+        .radio-label {
+            font-weight: 500;
+            color: #495057;
+            font-size: 1.05rem;
+            transition: color 0.3s ease;
+        }
+        .custom-radio input[type="radio"]:checked ~ .radio-label {
+            color: #0d6efd;
+            font-weight: 600;
+        }
+        .rules-list {
+            margin-bottom: 2rem;
+        }
+        .rules-list li {
+            margin-bottom: 0.8rem;
+            line-height: 1.6;
+        }
+        .terms-section {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            border: 1px solid #e9ecef;
+        }
+        .action-section {
+            display: flex;
+            justify-content: flex-end; /* Align right side bottom */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Error Alert -->
+        <div th:if="${error != null}" class="alert alert-danger alert-dismissible fade show mb-4 mt-3 mx-auto shadow-sm" role="alert" style="max-width: 800px; border-left: 5px solid #dc3545;">
+            <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2"></i>
+            <strong>Hold On!</strong> <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+        <div class="rules-container">
+            
+            <!-- Header Section with Logo and Exam Type -->
+            <div class="header-section">
+                <!-- Logo -->
+                <img th:src="@{/images/logo.png}" alt="University Logo" class="logo-img" onerror="this.src='https://via.placeholder.com/150x150?text=LJKU+Logo'">
+                
+                <h3 class="fw-bold text-primary mt-2">Rules and Regulations</h3>
+
+                <!-- Exam Type Section -->
+                <div class="exam-type-section d-flex align-items-center justify-content-center gap-3">
+                    <div class="exam-type-heading mb-0">Exam Type:</div>
+                    <div class="custom-radio-group">
+                        <label class="custom-radio m-0">
+                            <input type="radio" name="examType" value="online" form="rulesForm" id="typeOnline" required>
+                            <div class="radio-circle"></div>
+                            <span class="radio-label">Online</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rules Section -->
+            <div class="rules-list">
+                <h5 class="fw-bold mb-3">Please read the following instructions carefully before starting the exam:</h5>
+                <ul>
+                    <li>The exam will consist of multiple-choice questions (MCQs).</li>
+                    <li>Ensure you have a stable internet connection before starting the exam.</li>
+                    <li>Do not refresh the page or click the browser's back button once the exam has started.</li>
+                    <li>Switching tabs or opening other applications during the exam is strictly prohibited and may lead to disqualification.</li>
+                    <li>The exam is timed. A countdown timer will be visible on the screen. The exam will auto-submit when the time is up.</li>
+                    <li>Any malpractice or suspicious activity detected by the system will be recorded and may result in the cancellation of your exam.</li>
+                    <li>Make sure you submit the exam manually if you finish before the time expires.</li>
+                </ul>
+            </div>
+
+            <!-- Form for Terms and Start Exam -->
+            <form id="rulesForm">
+                <!-- Terms and Conditions Checkbox -->
+                <div class="terms-section">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="termsCheckbox" required>
+                        <label class="form-check-label fw-semibold" for="termsCheckbox">
+                            I have read and understood all the rules and regulations. I agree to abide by the terms and conditions of this exam.
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Start Exam Button (Right aligned) -->
+                <div class="action-section">
+                    <a th:if="${isFallback != null && isFallback == true}" th:href="@{'/student/rules/start'}" class="btn btn-primary px-4 py-2 fw-bold disabled" id="startExamBtn">
+                        Start Exam <i class="bi bi-arrow-right-circle ms-2"></i>
+                    </a>
+                    <a th:if="${isFallback == null || isFallback == false}" th:href="@{'/start-exam'}" class="btn btn-primary px-4 py-2 fw-bold disabled" id="startExamBtn">
+                        Start Exam <i class="bi bi-arrow-right-circle ms-2"></i>
+                    </a>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Enable 'Start Exam' button only when terms checkbox is checked and exam type is selected
+        const termsCheckbox = document.getElementById('termsCheckbox');
+        const startExamBtn = document.getElementById('startExamBtn');
+        const radioButtons = document.querySelectorAll('input[name="examType"]');
+
+        function checkConditions() {
+            const isExamTypeSelected = document.querySelector('input[name="examType"]:checked') !== null;
+            if (termsCheckbox.checked && isExamTypeSelected) {
+                startExamBtn.classList.remove('disabled');
+            } else {
+                startExamBtn.classList.add('disabled');
+            }
+        }
+
+        termsCheckbox.addEventListener('change', checkConditions);
+        radioButtons.forEach(radio => radio.addEventListener('change', checkConditions));
+    </script>
+</body>
+</html>
