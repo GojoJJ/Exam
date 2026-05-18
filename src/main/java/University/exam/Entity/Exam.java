@@ -14,7 +14,8 @@ public class Exam {
     private String semester;
     private String subject;
     private Double totalMarks;
-    private Integer durationMinutes;
+    @Column(name = "exam_duration")
+    private Integer examDuration;
 
     public Exam() {}
 
@@ -30,6 +31,6 @@ public class Exam {
     public void setSubject(String subject) { this.subject = subject; }
     public Double getTotalMarks() { return totalMarks; }
     public void setTotalMarks(Double totalMarks) { this.totalMarks = totalMarks; }
-    public Integer getDurationMinutes() { return durationMinutes; }
-    public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+    public Integer getExamDuration() { return examDuration; }
+    public void setExamDuration(Integer examDuration) { this.examDuration = examDuration; }
 }

@@ -64,7 +64,7 @@ public class PaperParsingService {
         }
     }
 
-    private List<Question> structureQuestions(String text, Paper paper) {
+    public List<Question> structureQuestions(String text, Paper paper) {
         List<Question> questions = new ArrayList<>();
         String[] lines = text.split("\\r?\\n");
         

@@ -12,7 +12,7 @@ public class Feedback {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "student_enrollment_no")
+    @JoinColumn(name = "student_enrollment_no", referencedColumnName = "enrollment_no")
     private Student student;
 
     // Use exam_id or paper_id depending on the type of exam

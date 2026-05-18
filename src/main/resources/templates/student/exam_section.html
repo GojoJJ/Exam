@@ -282,6 +282,68 @@
             .question-area { padding: 20px; }
             .sticky-footer { padding: 12px 20px; }
         }
+        /* OR Question Logic */
+        .or-divider {
+            position: relative;
+            text-align: center;
+            margin: 30px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .or-divider::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #e9ecef;
+            z-index: 1;
+        }
+        .or-text {
+            position: relative;
+            z-index: 2;
+            background: #f8f9fa;
+            padding: 0 20px;
+            font-weight: 800;
+            color: var(--purple-banner);
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+        .or-choice-card {
+            border: 2px solid #e9ecef;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #fff;
+            position: relative;
+            cursor: pointer;
+        }
+        .or-choice-card:hover {
+            border-color: #dee2e6;
+            transform: translateY(-2px);
+        }
+        .or-choice-card.active-choice {
+            border-color: var(--primary-blue);
+            background-color: #f0f7ff;
+            box-shadow: 0 4px 15px rgba(13, 110, 253, 0.1);
+        }
+        .or-choice-card.disabled-choice {
+            opacity: 0.5;
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+        .choice-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            transform: scale(1.5);
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -291,7 +353,7 @@
     <div class="student-badge">
         🎓 <span th:text="${session.loggedInStudent} + ' (' + ${session.loggedInStudent} + ')'">23CS001 (23CS001)</span>
     </div>
-    <div id="timerDisplay" class="pill-timer">⏱️ 00:00:00</div>
+    <div id="timerDisplay" class="pill-timer">Time Remaining: 00:00:00</div>
 </header>
 
 <!-- 2. Secondary Info Bar -->
@@ -299,6 +361,7 @@
     <div class="info-item"><i class="fas fa-book"></i> Subject: <span th:text="${exam.subject}">DS</span></div>
     <div class="info-item"><i class="fas fa-graduation-cap"></i> Semester: <span th:text="${student != null && student.semester != null ? student.semester : '1'}">1</span></div>
     <div class="info-item"><i class="fas fa-file-alt"></i> Exam: <span th:text="${exam.examName != null ? exam.examName : 'DS'}">DS</span></div>
+    <div class="info-item"><i class="fas fa-clock"></i> Total Time: <span th:text="${exam.examDuration != null ? exam.examDuration : 120}">120</span> Minutes</div>
 </div>
 
 <!-- 3. Main Layout Grid -->
@@ -338,10 +401,25 @@
             </div>
 
             <!-- Questions List -->
-            <div th:each="q, iterStat : ${section.questions}" class="question-item">
+            <div th:each="q, iterStat : ${section.questions}" 
+                 class="question-item"
+                 th:classappend="${q.pairId != null and q.pairId != '' ? 'or-choice-card' : ''}"
+                 th:attr="data-pair-id=${q.pairId}">
+                
+                <div th:if="${q.pairId != null and q.pairId != ''}" class="mb-3 d-flex align-items-center">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input choice-selector" type="radio" 
+                               th:name="'choice-' + ${q.pairId}" 
+                               th:id="'radio-' + ${q.id}"
+                               th:checked="${savedAnswers != null && savedAnswers.containsKey(q.id) && savedAnswers.get(q.id) != ''}"
+                               th:onchange="'toggleORChoice(this, ' + ${q.id} + ', \'' + ${q.pairId} + '\')'">
+                        <label class="form-check-label fw-bold text-primary ms-3" th:for="'radio-' + ${q.id}">Attempt This Option</label>
+                    </div>
+                </div>
+
                 <div class="q-num-badge" th:text="${iterStat.count}">1</div>
                 <div class="question-text">
-                    <span th:if="${q.optional}" class="badge bg-warning text-dark me-2">OR</span>
+                    <span th:if="${q.isOptional()}" class="badge bg-warning text-dark me-2">OR</span>
                     <span th:text="${q.text}">Give any two examples of data structure.</span>
                 </div>
                 
@@ -354,11 +432,12 @@
                     </div>
                 </div>
 
-                <!-- Input Area (Only for first question or based on some logic) -->
+                <!-- Input Area -->
                 <textarea class="answer-textarea answer-area" 
                           th:attr="data-qid=${q.id}" 
                           placeholder="Type your detailed answer here. Your progress is automatically saved..." 
-                          th:text="${savedAnswers != null && savedAnswers.containsKey(q.id) ? savedAnswers.get(q.id) : ''}"></textarea>
+                          th:text="${savedAnswers != null && savedAnswers.containsKey(q.id) ? savedAnswers.get(q.id) : ''}"
+                          th:disabled="${q.pairId != null and q.pairId != '' and (savedAnswers == null || !savedAnswers.containsKey(q.id) || savedAnswers.get(q.id) == '')}"></textarea>
                 
                 <div class="d-flex justify-content-between align-items-center mt-2">
                     <div class="char-helper" th:id="'char-count-' + ${q.id}">0 characters</div>
@@ -403,6 +482,56 @@
     let remainingSeconds = parseInt(document.getElementById('remainingSeconds').value);
     const currentIndex = parseInt(document.getElementById('currentIndex').value);
     
+    function toggleORChoice(radio, qid, pairId) {
+        const cards = document.querySelectorAll(`[data-pair-id="${pairId}"]`);
+        cards.forEach(card => {
+            const textarea = card.querySelector('.answer-area');
+            const cardQid = textarea.getAttribute('data-qid');
+            if (cardQid == qid) {
+                card.classList.add('active-choice');
+                card.classList.remove('disabled-choice');
+                textarea.disabled = false;
+                textarea.focus();
+            } else {
+                card.classList.add('disabled-choice');
+                card.classList.remove('active-choice');
+                textarea.disabled = true;
+                if (textarea.value !== "") {
+                    textarea.value = "";
+                    saveAnswer(cardQid, ""); // Clear partner answer
+                }
+            }
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const pairs = new Set();
+        document.querySelectorAll('[data-pair-id]').forEach(el => {
+            const pid = el.getAttribute('data-pair-id');
+            if (pid) pairs.add(pid);
+        });
+
+        pairs.forEach(pid => {
+            const cards = document.querySelectorAll(`[data-pair-id="${pid}"]`);
+            let anySelected = false;
+            cards.forEach(card => {
+                const radio = card.querySelector('.choice-selector');
+                if (radio && radio.checked) {
+                    anySelected = true;
+                    toggleORChoice(radio, card.querySelector('.answer-area').getAttribute('data-qid'), pid);
+                }
+            });
+            
+            // Insert "OR" divider
+            for (let i = 0; i < cards.length - 1; i++) {
+                const divider = document.createElement('div');
+                divider.className = 'or-divider';
+                divider.innerHTML = '<span class="or-text">OR</span>';
+                cards[i].insertAdjacentElement('afterend', divider);
+            }
+        });
+    });
+
     // Prevent leaving
     window.onbeforeunload = function() {
         if(remainingSeconds > 0 && !window.isNavigating) return "Exam in progress.";
@@ -477,14 +606,14 @@
         const interval = setInterval(function () {
             if (remainingSeconds <= 0) {
                 clearInterval(interval);
-                display.innerText = "⏱️ 00:00:00";
+                display.innerText = "Time Remaining: 00:00:00";
                 autoSubmitExam();
                 return;
             }
             let hrs = Math.floor(remainingSeconds / 3600);
             let mins = Math.floor((remainingSeconds % 3600) / 60);
             let secs = remainingSeconds % 60;
-            display.innerText = "⏱️ " +
+            display.innerText = "Time Remaining: " +
                 (hrs < 10 ? "0"+hrs : hrs) + ":" + 
                 (mins < 10 ? "0"+mins : mins) + ":" + 
                 (secs < 10 ? "0"+secs : secs);
@@ -515,9 +644,130 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-            if (response.ok) window.location.href = '/student/exam/feedback';
+            if (response.ok) {
+                sessionStorage.removeItem("examWarningCount");
+                window.location.href = '/student/exam/feedback';
+            }
         } catch (e) { alert("Error."); }
     }
+
+    // PROCTORING DETECTION & VIOLATION HANDLING
+    let warningCount = 0;
+    if (sessionStorage.getItem("examWarningCount")) {
+        warningCount = parseInt(sessionStorage.getItem("examWarningCount"));
+    }
+
+    window.isNavigating = false;
+    window.isDisplayingModal = false;
+
+    // Set navigating flag on local clicks
+    document.addEventListener("click", function(e) {
+        const interactiveEl = e.target.closest("a, button, form, input[type='submit']");
+        if (interactiveEl) {
+            window.isNavigating = true;
+        }
+    });
+
+    // Detect Tab switching or minimize
+    document.addEventListener("visibilitychange", function() {
+        if (document.hidden && !window.isNavigating) {
+            handleViolation("tab_switch");
+        }
+    });
+
+    // Detect Window focus loss
+    window.addEventListener("blur", function() {
+        setTimeout(() => {
+            if (!document.hasFocus() && !window.isNavigating && !window.isDisplayingModal) {
+                handleViolation("window_blur");
+            }
+        }, 200);
+    });
+
+    function handleViolation(reason) {
+        if (window.isNavigating || window.isDisplayingModal) return;
+
+        warningCount++;
+        sessionStorage.setItem("examWarningCount", warningCount);
+        console.warn("Violation detected: " + reason + ". Warning count: " + warningCount);
+
+        if (warningCount === 1) {
+            window.isDisplayingModal = true;
+            alert("⚠️ WARNING: Do not switch tabs or leave the exam window. This is your ONLY warning. Another violation will terminate your exam instantly.");
+            window.isDisplayingModal = false;
+        } else {
+            terminateExamDueToViolation();
+        }
+    }
+
+    async function terminateExamDueToViolation() {
+        window.isNavigating = true;
+        sessionStorage.removeItem("examWarningCount");
+
+        try {
+            document.querySelectorAll('.answer-area').forEach(ta => ta.disabled = true);
+            await saveAllAnswers();
+            
+            const response = await fetch('/student/exam/auto-submit', {
+                method: 'POST'
+            });
+            window.location.href = '/student/exam/terminated';
+        } catch (error) {
+            console.error("Termination failed, forcing redirect", error);
+            window.location.href = '/student/exam/terminated';
+        }
+    }
+
+    // ANTI-CHEAT: DISABLE COPY-PASTE & RIGHT-CLICK
+    // 1. Disable Right Click (Context Menu) globally on the exam page
+    document.addEventListener("contextmenu", function(e) {
+        e.preventDefault();
+    });
+
+    // 2. Disable Paste, Copy, and Cut events on all answer textarea elements
+    document.querySelectorAll("textarea.answer-area").forEach(function(el) {
+        el.addEventListener("paste", function(e) {
+            e.preventDefault();
+            console.warn("Suspicious Behavior: Paste attempt detected on textarea ID: " + el.getAttribute("data-qid"));
+            alert("Pasting is not allowed. Please type your answer manually.");
+        });
+        
+        el.addEventListener("copy", function(e) {
+            e.preventDefault();
+            console.warn("Suspicious Behavior: Copy attempt detected on textarea ID: " + el.getAttribute("data-qid"));
+            alert("Copying content is disabled during the exam.");
+        });
+
+        el.addEventListener("cut", function(e) {
+            e.preventDefault();
+            console.warn("Suspicious Behavior: Cut attempt detected on textarea ID: " + el.getAttribute("data-qid"));
+            alert("Cutting content is disabled during the exam.");
+        });
+    });
+
+    // 3. Disable Keyboard shortcuts (Ctrl+C, Ctrl+V, Ctrl+X, Cmd+C, Cmd+V, Cmd+X)
+    document.addEventListener("keydown", function(e) {
+        const key = e.key.toLowerCase();
+        const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+        const isPaste = (isCtrlOrCmd && key === 'v') || (isCtrlOrCmd && e.shiftKey && key === 'v');
+        const isCopy = isCtrlOrCmd && key === 'c';
+        const isCut = isCtrlOrCmd && key === 'x';
+
+        if (isPaste) {
+            e.preventDefault();
+            console.warn("Suspicious Behavior: Paste keyboard shortcut attempt detected.");
+            alert("Pasting is not allowed. Please type your answer manually.");
+        } else if (isCopy) {
+            e.preventDefault();
+            console.warn("Suspicious Behavior: Copy keyboard shortcut attempt detected.");
+            alert("Copying content is disabled during the exam.");
+        } else if (isCut) {
+            e.preventDefault();
+            console.warn("Suspicious Behavior: Cut keyboard shortcut attempt detected.");
+            alert("Cutting content is disabled during the exam.");
+        }
+    });
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

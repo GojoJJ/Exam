@@ -28,6 +28,9 @@ public class Question {
     @Column(name = "is_or_option")
     private boolean isOrOption;
 
+    @Column(name = "pair_id")
+    private String pairId;
+
     public Question() {}
 
     public Long getId() { return id; }
@@ -42,6 +45,9 @@ public class Question {
     public void setMarks(Double marks) { this.marks = marks; }
     public String getQuestionGroup() { return questionGroup; }
     public void setQuestionGroup(String questionGroup) { this.questionGroup = questionGroup; }
+    
+    public String getPairId() { return pairId; }
+    public void setPairId(String pairId) { this.pairId = pairId; }
     
     public boolean isOptional() { return isOptional; }
     public void setOptional(boolean isOptional) { 

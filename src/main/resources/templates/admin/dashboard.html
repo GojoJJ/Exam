@@ -3,13 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <!-- Bootstrap CSS -->
+    <title>Admin Dashboard - Exam System</title>
+    <!-- Bootstrap CSS & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
     <style>
-        body { background-color: #f8f9fa; }
-        .main-content { margin-left: 250px; padding: 2rem; }
+        :root {
+            --bg-canvas: #f8fafc;
+            --primary: #4f46e5;
+            --primary-light: #e0e7ff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --sidebar-width: 280px;
+            --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+            --card-shadow-hover: 0 20px 40px -15px rgba(99, 102, 241, 0.12), 0 1px 10px rgba(0, 0, 0, 0.05);
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background-color: var(--bg-canvas);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif !important;
+            min-height: 100vh;
+        }
+
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 3rem;
+            transition: var(--transition-smooth);
+        }
+
+        /* Top Welcome Banner */
+        .welcome-banner {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+            border-radius: 24px;
+            padding: 2.5rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 15px 35px -5px rgba(30, 27, 75, 0.25);
+            margin-bottom: 3rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .welcome-banner::after {
+            content: '';
+            position: absolute;
+            top: -20%;
+            right: -10%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .welcome-badge {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(165, 180, 252, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #c7d2fe;
+            margin-bottom: 1rem;
+        }
+
+        /* Metric Cards */
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 1.75rem;
+            box-shadow: var(--card-shadow);
+            transition: var(--transition-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--card-shadow-hover);
+            border-color: #e0e7ff;
+        }
+
+        .metric-icon-box {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: var(--transition-smooth);
+        }
+
+        .metric-card:hover .metric-icon-box {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1.1;
+        }
+
+        /* Quick Actions */
+        .action-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            padding: 2.25rem;
+            height: 100%;
+            transition: var(--transition-smooth);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: var(--card-shadow);
+        }
+
+        .action-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05);
+            border-color: #cbd5e1;
+        }
+
+        .action-icon-box {
+            width: 64px;
+            height: 64px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+        }
+
+        .action-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            color: var(--text-main);
+        }
+
+        .action-desc {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 1.75rem;
+        }
+
+        .btn-action {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+            color: white;
+            font-weight: 600;
+            padding: 0.85rem 1.5rem;
+            border-radius: 12px;
+            border: none;
+            transition: var(--transition-smooth);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+            width: 100%;
+        }
+
+        .btn-action:hover {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-action-alt {
+            background: #f1f5f9;
+            color: #334155;
+        }
+
+        .btn-action-alt:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        @media (max-width: 991px) {
+            .main-content {
+                margin-left: 0;
+                padding: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -17,64 +215,113 @@
     <!-- Include Sidebar -->
     <div th:replace="~{admin/fragments :: sidebar('dashboard')}"></div>
 
-    <div class="main-content">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="fw-bold text-primary">Dashboard Overview</h2>
-            <div class="bg-white px-4 py-2 rounded shadow-sm border">
-                Welcome, <span class="fw-bold text-primary" th:text="${adminName}">Admin</span>
+    <main class="main-content">
+        <!-- Welcome Banner -->
+        <div class="welcome-banner">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="welcome-badge">
+                        <i class="bi bi-shield-check"></i> Securing Academic Excellence
+                    </div>
+                    <h1 class="display-5 fw-bold mb-2">Control Center</h1>
+                    <p class="lead mb-0 text-indigo-100 opacity-90">
+                        Hello, <span class="fw-bold" th:text="${adminName}">Super Admin</span>. Seamlessly manage examination papers, monitor live student submissions, and perform automated evaluations.
+                    </p>
+                </div>
+                <div class="col-lg-4 d-none d-lg-block text-end">
+                    <i class="bi bi-cpu" style="font-size: 8rem; color: rgba(255,255,255,0.06); position: absolute; right: 2rem; bottom: -1rem;"></i>
+                </div>
             </div>
         </div>
 
-        <div class="row g-4">
+        <!-- Metric Cards Grid -->
+        <div class="row g-4 mb-5">
+            <!-- Total Papers Card -->
             <div class="col-md-4">
-                <div class="card shadow-sm border-0 border-start border-primary border-4 h-100">
-                    <div class="card-body py-4">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <h6 class="text-muted text-uppercase fw-bold mb-2">Total Papers</h6>
-                                <h2 class="mb-0 fw-bold" th:text="${totalPapers ?: 0}">0</h2>
-                            </div>
-                            <div class="bg-primary bg-opacity-10 p-3 rounded">
-                                <i class="bi bi-file-earmark-text text-primary fs-3"></i>
-                            </div>
+                <div class="metric-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="metric-label">Total Papers</div>
+                            <h2 class="metric-value" th:text="${totalPapers ?: 0}">0</h2>
+                        </div>
+                        <div class="metric-icon-box" style="background-color: #eff6ff; color: #3b82f6;">
+                            <i class="bi bi-file-earmark-text-fill"></i>
                         </div>
                     </div>
                 </div>
             </div>
             
+            <!-- Submissions Card -->
             <div class="col-md-4">
-                <div class="card shadow-sm border-0 border-start border-success border-4 h-100">
-                    <div class="card-body py-4">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <h6 class="text-muted text-uppercase fw-bold mb-2">Submissions</h6>
-                                <h2 class="mb-0 fw-bold" th:text="${totalSubmissions ?: 0}">0</h2>
-                            </div>
-                            <div class="bg-success bg-opacity-10 p-3 rounded">
-                                <i class="bi bi-person-check text-success fs-3"></i>
-                            </div>
+                <div class="metric-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="metric-label">Submissions</div>
+                            <h2 class="metric-value" th:text="${totalSubmissions ?: 0}">0</h2>
+                        </div>
+                        <div class="metric-icon-box" style="background-color: #ecfdf5; color: #10b981;">
+                            <i class="bi bi-people-fill"></i>
                         </div>
                     </div>
                 </div>
             </div>
             
+            <!-- Pending Evaluation Card -->
             <div class="col-md-4">
-                <div class="card shadow-sm border-0 border-start border-warning border-4 h-100">
-                    <div class="card-body py-4">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <h6 class="text-muted text-uppercase fw-bold mb-2">Pending Evaluation</h6>
-                                <h2 class="mb-0 fw-bold" th:text="${pendingEvaluations ?: 0}">0</h2>
-                            </div>
-                            <div class="bg-warning bg-opacity-10 p-3 rounded">
-                                <i class="bi bi-hourglass-split text-warning fs-3"></i>
-                            </div>
+                <div class="metric-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="metric-label">Pending Evaluation</div>
+                            <h2 class="metric-value" th:text="${pendingEvaluations ?: 0}">0</h2>
+                        </div>
+                        <div class="metric-icon-box" style="background-color: #fffbeb; color: #f59e0b;">
+                            <i class="bi bi-clock-fill"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+
+        <!-- Call-to-Actions (Quick Operations) -->
+        <h3 class="fw-bold mb-4">Quick Operations</h3>
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="action-card">
+                    <div>
+                        <div class="action-icon-box" style="background-color: #eef2ff; color: #4f46e5;">
+                            <i class="bi bi-file-earmark-arrow-up-fill"></i>
+                        </div>
+                        <h4 class="action-title">Upload New Exam Paper</h4>
+                        <p class="action-desc">
+                            Instantly upload PDF or Word documents of exam question papers. The intelligent parser will automatically extract and categorize sections, choice question pairings, and marks ready for your review.
+                        </p>
+                    </div>
+                    <a th:href="@{/admin/upload-paper}" class="btn-action">
+                        <span>Go to Upload</span>
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="action-card">
+                    <div>
+                        <div class="action-icon-box" style="background-color: #f0fdf4; color: #16a34a;">
+                            <i class="bi bi-clipboard2-check-fill"></i>
+                        </div>
+                        <h4 class="action-title">Evaluate Student Papers</h4>
+                        <p class="action-desc">
+                            Review list of submitted answer sheets, evaluate descriptive responses side-by-side with marking criteria, calculate automatic totals, and record detailed internal feedback.
+                        </p>
+                    </div>
+                    <a th:href="@{/admin/submissions}" class="btn-action btn-action-alt">
+                        <span>Review Submissions</span>
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

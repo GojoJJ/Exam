@@ -55,64 +55,78 @@ public class StudentExamRestController {
             return ResponseEntity.ok(Collections.emptyList());
         }
 
-        long seed = 0;
-        if ("paper".equals(type)) {
-            Optional<Submission> sub = submissionRepository.findByStudentEnrollmentNoAndPaperId(enrollmentNo, id);
-            if (sub.isPresent()) seed = sub.get().getId();
-        } else {
-            Optional<ExamAttempt> attempt = examAttemptRepository.findByStudentEnrollmentNoAndExamId(enrollmentNo, id);
-            if (attempt.isPresent()) seed = attempt.get().getId();
-        }
+        long seed = (enrollmentNo.hashCode() * 31L) + id;
+
+        List<Map<String, Object>> result = new ArrayList<>();
 
         if (seed != 0) {
             // Group by dynamic questionGroup and preserve order of appearance initially
+            List<String> originalSectionNames = new ArrayList<>();
             Map<String, List<Question>> groupedQuestions = new LinkedHashMap<>();
             
             for (Question q : questions) {
                 String group = q.getQuestionGroup() != null ? q.getQuestionGroup() : "Q1";
+                if (!groupedQuestions.containsKey(group)) {
+                    originalSectionNames.add(group);
+                }
                 groupedQuestions.computeIfAbsent(group, k -> new ArrayList<>()).add(q);
             }
             
-            Random rand = new Random(seed);
             List<List<Question>> sections = new ArrayList<>();
-            for (List<Question> groupList : groupedQuestions.values()) {
-                if (!groupList.isEmpty()) {
-                    sections.add(groupList);
-                }
+            for (String groupName : originalSectionNames) {
+                sections.add(new ArrayList<>(groupedQuestions.get(groupName)));
             }
             
-            // Shuffle sections (blocks) as a whole
+            // Shuffle sections (blocks) as a whole unit
+            Random rand = new Random(seed);
             Collections.shuffle(sections, rand);
             
-            List<Question> processedQuestions = new ArrayList<>();
-            for (List<Question> sectionList : sections) {
-                // Keep questions inside section in original order
-                processedQuestions.addAll(sectionList);
+            // Map the shuffled questions to the original section names (fixed names, shifted content)
+            for (int i = 0; i < sections.size(); i++) {
+                String assignedSectionName = originalSectionNames.get(i);
+                List<Question> sectionList = sections.get(i);
+                
+                for (Question q : sectionList) {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", q.getId());
+                    map.put("text", q.getText());
+                    map.put("marks", q.getMarks());
+                    map.put("questionGroup", assignedSectionName); // Reassigned fixed section name
+                    map.put("isOptional", q.isOptional());
+                    
+                    if ("paper".equals(type)) {
+                        submissionRepository.findByStudentEnrollmentNoAndPaperId(enrollmentNo, id)
+                            .flatMap(sub -> answerRepository.findFirstBySubmissionIdAndQuestionIdOrderByUpdatedAtDesc(sub.getId(), q.getId()))
+                            .ifPresent(ans -> map.put("savedAnswer", ans.getStudentAnswer()));
+                    } else {
+                        examAttemptRepository.findByStudentEnrollmentNoAndExamId(enrollmentNo, id)
+                            .flatMap(attempt -> answerRepository.findFirstByExamAttemptIdAndQuestionIdOrderByUpdatedAtDesc(attempt.getId(), q.getId()))
+                            .ifPresent(ans -> map.put("savedAnswer", ans.getStudentAnswer()));
+                    }
+                    result.add(map);
+                }
             }
-            questions = processedQuestions;
         } else {
-            Collections.shuffle(questions);
-        }
-
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Question q : questions) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", q.getId());
-            map.put("text", q.getText());
-            map.put("marks", q.getMarks());
-            map.put("questionGroup", q.getQuestionGroup());
-            map.put("isOptional", q.isOptional());
-            
-            if ("paper".equals(type)) {
-                submissionRepository.findByStudentEnrollmentNoAndPaperId(enrollmentNo, id)
-                    .flatMap(sub -> answerRepository.findFirstBySubmissionIdAndQuestionIdOrderByUpdatedAtDesc(sub.getId(), q.getId()))
-                    .ifPresent(ans -> map.put("savedAnswer", ans.getStudentAnswer()));
-            } else {
-                examAttemptRepository.findByStudentEnrollmentNoAndExamId(enrollmentNo, id)
-                    .flatMap(attempt -> answerRepository.findFirstByExamAttemptIdAndQuestionIdOrderByUpdatedAtDesc(attempt.getId(), q.getId()))
-                    .ifPresent(ans -> map.put("savedAnswer", ans.getStudentAnswer()));
+            // No seed or shuffle disabled - return original section names
+            for (Question q : questions) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", q.getId());
+                map.put("text", q.getText());
+                map.put("marks", q.getMarks());
+                map.put("questionGroup", q.getQuestionGroup());
+                map.put("isOptional", q.isOptional());
+                
+                if ("paper".equals(type)) {
+                    submissionRepository.findByStudentEnrollmentNoAndPaperId(enrollmentNo, id)
+                        .flatMap(sub -> answerRepository.findFirstBySubmissionIdAndQuestionIdOrderByUpdatedAtDesc(sub.getId(), q.getId()))
+                        .ifPresent(ans -> map.put("savedAnswer", ans.getStudentAnswer()));
+                } else {
+                    examAttemptRepository.findByStudentEnrollmentNoAndExamId(enrollmentNo, id)
+                        .flatMap(attempt -> answerRepository.findFirstByExamAttemptIdAndQuestionIdOrderByUpdatedAtDesc(attempt.getId(), q.getId()))
+                        .ifPresent(ans -> map.put("savedAnswer", ans.getStudentAnswer()));
+                }
+                result.add(map);
             }
-            result.add(map);
         }
 
         return ResponseEntity.ok(result);
@@ -127,6 +141,32 @@ public class StudentExamRestController {
         Long submissionId = payload.get("submissionId") != null ? Long.valueOf(payload.get("submissionId").toString()) : null;
         Long questionId = payload.get("questionId") != null ? Long.valueOf(payload.get("questionId").toString()) : null;
         String answerText = payload.get("answer") != null ? payload.get("answer").toString() : "";
+
+        // OR Question Logic: If this is an OR question and answer is not empty, ensure partner is cleared
+        Question currentQuestion = questionRepository.findById(questionId).orElse(null);
+        if (currentQuestion != null && currentQuestion.getPairId() != null && !currentQuestion.getPairId().isEmpty() && !answerText.trim().isEmpty()) {
+            List<Question> partners = questionRepository.findByPairId(currentQuestion.getPairId());
+            for (Question partner : partners) {
+                if (!partner.getId().equals(questionId)) {
+                    // Find and clear partner answer
+                    if (attemptId != null) {
+                        answerRepository.findFirstByExamAttemptIdAndQuestionIdOrderByUpdatedAtDesc(attemptId, partner.getId())
+                            .ifPresent(ans -> {
+                                ans.setStudentAnswer("");
+                                ans.setUpdatedAt(LocalDateTime.now());
+                                answerRepository.save(ans);
+                            });
+                    } else if (submissionId != null) {
+                        answerRepository.findFirstBySubmissionIdAndQuestionIdOrderByUpdatedAtDesc(submissionId, partner.getId())
+                            .ifPresent(ans -> {
+                                ans.setStudentAnswer("");
+                                ans.setUpdatedAt(LocalDateTime.now());
+                                answerRepository.save(ans);
+                            });
+                    }
+                }
+            }
+        }
 
         Answer answer;
         if (attemptId != null) {

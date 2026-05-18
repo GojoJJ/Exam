@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
 import jakarta.servlet.http.HttpSession;
 
 import java.time.LocalDateTime;
@@ -51,7 +52,7 @@ public class StudentExamController {
             session.setAttribute("loggedInStudent", enrollmentNo);
             
             // Create mock student if doesn't exist
-            if (studentRepository.findById(enrollmentNo).isEmpty()) {
+            if (studentRepository.findByEnrollmentNo(enrollmentNo).isEmpty()) {
                 studentRepository.save(new Student(enrollmentNo, "password"));
             }
         }
@@ -66,11 +67,21 @@ public class StudentExamController {
     }
 
     @GetMapping("/rules/{id}")
-    public String rules(@PathVariable Long id, HttpSession session, Model model) {
+    public String rules(@PathVariable Long id, @RequestParam(required = false) String error, HttpSession session, Model model) {
         if (session.getAttribute("loggedInStudent") == null) return "redirect:/login";
 
         Exam exam = examRepository.findById(id).orElse(null);
         if (exam == null) return "redirect:/student/rules";
+
+        if (error != null) {
+            if ("already_submitted".equals(error)) {
+                model.addAttribute("error", "You have already completed and submitted this exam.");
+            } else if ("terminated_violation".equals(error)) {
+                model.addAttribute("error", "This exam session was automatically terminated due to a window switch or tab escape violation.");
+            } else {
+                model.addAttribute("error", error);
+            }
+        }
 
         model.addAttribute("exam", exam);
         return "student/rules";
@@ -84,7 +95,7 @@ public class StudentExamController {
         Exam exam = examRepository.findById(id).orElse(null);
         if (exam == null) return "redirect:/student/rules";
 
-        Student student = studentRepository.findById(enrollmentNo).orElse(null);
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
 
         ExamAttempt attempt = examAttemptRepository.findByStudentEnrollmentNoAndExamId(enrollmentNo, id)
                 .orElseGet(() -> {
@@ -97,7 +108,10 @@ public class StudentExamController {
                 });
 
         if ("Submitted".equals(attempt.getStatus())) {
-            return "redirect:/student/rules?error=already_submitted";
+            return "redirect:/student/exam/rules/" + id + "?error=already_submitted";
+        }
+        if ("Terminated".equals(attempt.getStatus())) {
+            return "redirect:/student/exam/rules/" + id + "?error=terminated_violation";
         }
 
         model.addAttribute("exam", exam);
@@ -106,7 +120,7 @@ public class StudentExamController {
         model.addAttribute("type", "exam");
         
         long elapsedSeconds = java.time.Duration.between(attempt.getStartTime(), LocalDateTime.now()).getSeconds();
-        long totalSeconds = exam.getDurationMinutes() != null ? exam.getDurationMinutes() * 60 : 3600;
+        long totalSeconds = exam.getExamDuration() != null ? exam.getExamDuration() * 60 : 3600;
         long remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
         
         session.setAttribute("currentExamId", id);
@@ -118,7 +132,7 @@ public class StudentExamController {
 
     // View: Rules for PDF-based paper
     @GetMapping("/paper-rules/{id}")
-    public String paperRules(@PathVariable Long id, HttpSession session, Model model) {
+    public String paperRules(@PathVariable Long id, @RequestParam(required = false) String error, HttpSession session, Model model) {
         if (session.getAttribute("loggedInStudent") == null) return "redirect:/login";
 
         Paper paper = paperRepository.findById(id).orElse(null);
@@ -129,6 +143,16 @@ public class StudentExamController {
             return "redirect:/student/rules?error=Exam is not available yet";
         }
 
+        if (error != null) {
+            if ("already_submitted".equals(error)) {
+                model.addAttribute("error", "You have already completed and submitted this exam.");
+            } else if ("terminated_violation".equals(error)) {
+                model.addAttribute("error", "This exam session was automatically terminated due to a window switch or tab escape violation.");
+            } else {
+                model.addAttribute("error", error);
+            }
+        }
+
         model.addAttribute("paper", paper);
         return "student/paper_rules";
     }
@@ -136,13 +160,23 @@ public class StudentExamController {
     // View: Start PDF-based exam (writing answers while viewing PDF)
     @GetMapping("/confirm-paper/{id}")
     public String confirmPaperExam(@PathVariable Long id, HttpSession session, Model model) {
-        String enrollmentNo = (String) session.getAttribute("loggedInStudent");
+        String enrollmentNo = (String) session.getAttribute("enrollment_no");
+        if (enrollmentNo == null) {
+            enrollmentNo = (String) session.getAttribute("loggedInStudent");
+        }
         if (enrollmentNo == null) return "redirect:/login";
 
         Paper paper = paperRepository.findById(id).orElse(null);
         if (paper == null) return "redirect:/student/rules";
 
-        Student student = studentRepository.findById(enrollmentNo).orElse(null);
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
+        if (student == null) {
+            throw new RuntimeException("Student not found for enrollment: " + enrollmentNo);
+        }
+
+        // Debug prints to verify DB data
+        System.out.println("DEBUG: Student Name: " + student.getStudentName());
+        System.out.println("DEBUG: Division: " + student.getDivision());
 
         model.addAttribute("paper", paper);
         model.addAttribute("student", student);
@@ -158,7 +192,7 @@ public class StudentExamController {
         Paper paper = paperRepository.findById(id).orElse(null);
         if (paper == null) return "redirect:/student/rules";
 
-        Student student = studentRepository.findById(enrollmentNo).orElse(null);
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
 
         List<Question> questions = questionRepository.findByPaperId(id);
         if (questions == null || questions.isEmpty()) {
@@ -179,7 +213,10 @@ public class StudentExamController {
         System.out.println("Starting Paper Exam - Student: " + enrollmentNo + ", Paper ID: " + id + ", Submission ID: " + submission.getId());
 
         if ("Submitted".equals(submission.getStatus())) {
-            return "redirect:/student/rules?error=already_submitted";
+            return "redirect:/student/exam/paper-rules/" + id + "?error=already_submitted";
+        }
+        if ("Terminated".equals(submission.getStatus())) {
+            return "redirect:/student/exam/paper-rules/" + id + "?error=terminated_violation";
         }
 
         model.addAttribute("questions", questions);
@@ -190,7 +227,7 @@ public class StudentExamController {
         model.addAttribute("type", "paper");
         
         long elapsedSeconds = java.time.Duration.between(submission.getSubmittedAt(), LocalDateTime.now()).getSeconds();
-        long totalSeconds = (paper.getDurationMinutes() != null ? paper.getDurationMinutes() : 120) * 60;
+        long totalSeconds = (paper.getExamDuration() != null ? paper.getExamDuration() : 120) * 60;
         long remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
         
         session.setAttribute("currentExamId", id);
@@ -213,7 +250,7 @@ public class StudentExamController {
             return "redirect:/student/rules";
         }
 
-        Student student = studentRepository.findById(enrollmentNo).orElse(null);
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
         model.addAttribute("student", student);
         model.addAttribute("type", type);
         model.addAttribute("attemptId", attemptId);
@@ -229,8 +266,14 @@ public class StudentExamController {
             
             Submission submission = submissionRepository.findById(attemptId).orElse(null);
             if (submission != null) {
+                if ("Submitted".equals(submission.getStatus())) {
+                    return "redirect:/student/exam/paper-rules/" + examId + "?error=already_submitted";
+                }
+                if ("Terminated".equals(submission.getStatus())) {
+                    return "redirect:/student/exam/paper-rules/" + examId + "?error=terminated_violation";
+                }
                 long elapsedSeconds = java.time.Duration.between(submission.getSubmittedAt(), LocalDateTime.now()).getSeconds();
-                long totalSeconds = (paper.getDurationMinutes() != null ? paper.getDurationMinutes() : 120) * 60;
+                long totalSeconds = (paper.getExamDuration() != null ? paper.getExamDuration() : 120) * 60;
                 remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
             }
         } else {
@@ -241,9 +284,31 @@ public class StudentExamController {
             
             ExamAttempt attempt = examAttemptRepository.findById(attemptId).orElse(null);
             if (attempt != null) {
+                if ("Submitted".equals(attempt.getStatus())) {
+                    return "redirect:/student/exam/rules/" + examId + "?error=already_submitted";
+                }
+                if ("Terminated".equals(attempt.getStatus())) {
+                    return "redirect:/student/exam/rules/" + examId + "?error=terminated_violation";
+                }
                 long elapsedSeconds = java.time.Duration.between(attempt.getStartTime(), LocalDateTime.now()).getSeconds();
-                long totalSeconds = exam.getDurationMinutes() != null ? exam.getDurationMinutes() * 60 : 3600;
+                long totalSeconds = exam.getExamDuration() != null ? exam.getExamDuration() * 60 : 3600;
                 remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+            }
+        }
+
+        // Apply Section-Level Shuffling with fixed naming per deterministic seed (studentId + examId)
+        if (sections != null && !sections.isEmpty() && enrollmentNo != null && examId != null) {
+            java.util.List<String> originalNames = new java.util.ArrayList<>();
+            for (University.exam.dto.Section s : sections) {
+                originalNames.add(s.getName());
+            }
+
+            long seed = (enrollmentNo.hashCode() * 31L) + examId;
+            java.util.Random rand = new java.util.Random(seed);
+            java.util.Collections.shuffle(sections, rand);
+
+            for (int i = 0; i < sections.size(); i++) {
+                sections.get(i).setName(originalNames.get(i));
             }
         }
 
@@ -291,7 +356,7 @@ public class StudentExamController {
             return "redirect:/student/exam/result-summary";
         }
 
-        Student student = studentRepository.findById(enrollmentNo).orElse(null);
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
         model.addAttribute("student", student);
         
         String examName = "Theory Examination";
@@ -334,7 +399,7 @@ public class StudentExamController {
             return "redirect:/student/exam/result-summary";
         }
 
-        Student student = studentRepository.findById(enrollmentNo).orElse(null);
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
         if (student != null) {
             Feedback feedback = new Feedback();
             feedback.setStudent(student);
@@ -398,5 +463,53 @@ public class StudentExamController {
         model.addAttribute("unattemptedQuestions", totalQuestions - attemptedQuestions);
         
         return "student/result_summary";
+    }
+
+    @PostMapping("/auto-submit")
+    @ResponseBody
+    public ResponseEntity<?> autoSubmitExam(HttpSession session) {
+        String enrollmentNo = (String) session.getAttribute("loggedInStudent");
+        if (enrollmentNo == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).body("Unauthorized");
+        }
+
+        Long examId = (Long) session.getAttribute("currentExamId");
+        String type = (String) session.getAttribute("currentExamType");
+        Long attemptId = (Long) session.getAttribute("currentAttemptId");
+
+        System.out.println("Auto-submit requested. Student: " + enrollmentNo + ", Type: " + type + ", AttemptId: " + attemptId);
+
+        if (examId == null || type == null || attemptId == null) {
+            return ResponseEntity.badRequest().body("No active exam session found");
+        }
+
+        if ("paper".equals(type)) {
+            Submission submission = submissionRepository.findById(attemptId).orElse(null);
+            if (submission != null && !"Submitted".equals(submission.getStatus())) {
+                submission.setStatus("Terminated");
+                submission.setSubmittedAt(LocalDateTime.now());
+                submissionRepository.save(submission);
+                System.out.println("Submission status marked as Terminated: " + attemptId);
+            }
+        } else {
+            ExamAttempt attempt = examAttemptRepository.findById(attemptId).orElse(null);
+            if (attempt != null && !"Submitted".equals(attempt.getStatus())) {
+                attempt.setStatus("Terminated");
+                attempt.setEndTime(LocalDateTime.now());
+                examAttemptRepository.save(attempt);
+                System.out.println("ExamAttempt status marked as Terminated: " + attemptId);
+            }
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/terminated")
+    public String terminated(HttpSession session, Model model) {
+        // Clear current exam session details since it's terminated
+        session.removeAttribute("currentExamId");
+        session.removeAttribute("currentExamType");
+        session.removeAttribute("currentAttemptId");
+        return "student/terminated";
     }
 }

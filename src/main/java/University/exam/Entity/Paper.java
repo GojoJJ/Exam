@@ -20,8 +20,12 @@ public class Paper {
     private String semester;
     private String filePath;
     private LocalDateTime uploadedAt;
-    private Integer durationMinutes;
+    @jakarta.persistence.Column(name = "exam_duration")
+    private Integer examDuration;
     private Double totalMarks;
+
+    @jakarta.persistence.Column(name = "manual_content", columnDefinition = "TEXT")
+    private String manualContent;
 
     public Paper() {}
 
@@ -47,8 +51,10 @@ public class Paper {
     public void setFilePath(String filePath) { this.filePath = filePath; }
     public LocalDateTime getUploadedAt() { return uploadedAt; }
     public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
-    public Integer getDurationMinutes() { return durationMinutes; }
-    public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+    public Integer getExamDuration() { return examDuration; }
+    public void setExamDuration(Integer examDuration) { this.examDuration = examDuration; }
     public Double getTotalMarks() { return totalMarks; }
     public void setTotalMarks(Double totalMarks) { this.totalMarks = totalMarks; }
+    public String getManualContent() { return manualContent; }
+    public void setManualContent(String manualContent) { this.manualContent = manualContent; }
 }

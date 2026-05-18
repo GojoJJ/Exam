@@ -29,9 +29,10 @@ public class LoginController {
     public String performLogin(String enrollmentNo, String password, jakarta.servlet.http.HttpSession session) {
         // Mock authentication
         session.setAttribute("loggedInStudent", enrollmentNo);
+        session.setAttribute("enrollment_no", enrollmentNo);
         
         // Ensure student exists in database (since we bypass dashboard mock logic)
-        if (studentRepository.findById(enrollmentNo).isEmpty()) {
+        if (studentRepository.findByEnrollmentNo(enrollmentNo).isEmpty()) {
             studentRepository.save(new University.exam.Entity.Student(enrollmentNo, password));
         }
         
@@ -71,7 +72,7 @@ public class LoginController {
         mockExam.setId(0L); // Use 0 to indicate it's a mock
         mockExam.setExamName("Waiting for Exam...");
         mockExam.setSubject("Please wait for the admin to upload the paper.");
-        mockExam.setDurationMinutes(120);
+        mockExam.setExamDuration(120);
         mockExam.setTotalMarks(100.0);
         
         if (error != null) {

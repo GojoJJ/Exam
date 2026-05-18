@@ -23,6 +23,12 @@
 <body>
 
 <div class="container">
+    <!-- Error Alert -->
+    <div th:if="${error != null}" class="alert alert-danger alert-dismissible fade show mb-4 mt-3 mx-auto shadow-sm" role="alert" style="max-width: 800px; border-left: 5px solid #dc3545;">
+        <strong>Hold On!</strong> <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+
     <div class="rules-container">
         <!-- Logo -->
         <div class="logo-container">
@@ -47,7 +53,7 @@
 
         <h4 class="fw-bold mb-3">Examination Rules & Guidelines</h4>
         <ul class="rules-list mb-4">
-            <li><strong>Time Limit:</strong> The exam duration is <span th:text="${paper.durationMinutes != null ? paper.durationMinutes : 120}">120</span> minutes. It will auto-submit when the timer reaches zero.</li>
+            <li><strong>Time Limit:</strong> The exam duration is <span th:text="${paper.examDuration != null ? paper.examDuration : 120}">120</span> minutes. It will auto-submit when the timer reaches zero.</li>
             <li><strong>No Tab Switching:</strong> Navigating away from the exam window or opening other applications is strictly prohibited.</li>
             <li><strong>Auto-Save:</strong> Your answers will be automatically saved every 15 seconds.</li>
             <li><strong>Submission:</strong> Do not refresh the page during the exam. Click 'Submit' only when you have completed all answers.</li>

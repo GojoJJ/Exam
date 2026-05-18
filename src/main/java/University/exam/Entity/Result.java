@@ -25,6 +25,14 @@ public class Result {
     private Double maxTotalMarks;
     private LocalDateTime evaluatedAt;
 
+    private String enrollmentNo;
+    private String studentName;
+    private String subject;
+    private String semester;
+    private String division;
+    private Double obtainedMarks;
+    private String status;
+
     public Result() {}
 
     public Result(Long id, Submission submission, Double totalMarks, Double maxTotalMarks, LocalDateTime evaluatedAt) {
@@ -45,4 +53,19 @@ public class Result {
     public void setMaxTotalMarks(Double maxTotalMarks) { this.maxTotalMarks = maxTotalMarks; }
     public LocalDateTime getEvaluatedAt() { return evaluatedAt; }
     public void setEvaluatedAt(LocalDateTime evaluatedAt) { this.evaluatedAt = evaluatedAt; }
+
+    public String getEnrollmentNo() { return enrollmentNo; }
+    public void setEnrollmentNo(String enrollmentNo) { this.enrollmentNo = enrollmentNo; }
+    public String getStudentName() { return studentName; }
+    public void setStudentName(String studentName) { this.studentName = studentName; }
+    public String getSubject() { return subject; }
+    public void setSubject(String subject) { this.subject = subject; }
+    public String getSemester() { return semester; }
+    public void setSemester(String semester) { this.semester = semester; }
+    public String getDivision() { return division; }
+    public void setDivision(String division) { this.division = division; }
+    public Double getObtainedMarks() { return obtainedMarks; }
+    public void setObtainedMarks(Double obtainedMarks) { this.obtainedMarks = obtainedMarks; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

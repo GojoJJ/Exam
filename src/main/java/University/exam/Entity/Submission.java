@@ -18,7 +18,7 @@ public class Submission {
     private Long id;
     
     @ManyToOne
-    @JoinColumn(name = "student_enrollment_no")
+    @JoinColumn(name = "student_enrollment_no", referencedColumnName = "enrollment_no")
     private Student student;
     
     @ManyToOne
