@@ -6,7 +6,19 @@
     <title>Exam - Writing Workspace</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- TinyMCE and DOMPurify CDNs for rich text editing and secure HTML sanitization -->
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js" referrerpolicy="origin"></script>
+    <!-- FontAwesome for canvas toolbar icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Drawing Canvas & Rich Editor Styles -->
+    <link href="/css/canvas.css" rel="stylesheet">
+    <link href="/css/drawing.css?v=1.0.3" rel="stylesheet">
+    <!-- Fabric.js and dynamic whiteboard drawing scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script src="/js/drawing.js?v=1.0.3"></script>
     <style>
+
         body { font-family: 'Inter', sans-serif; background-color: #f0f2f5; height: 100vh; overflow: hidden; }
         .exam-header { background-color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 10px 20px; z-index: 1000; }
         .timer-strip { background: #2d3748; color: white; padding: 5px 0; text-align: center; font-weight: 700; font-size: 1.25rem; border-radius: 8px; margin-top: 5px; }
@@ -69,23 +81,37 @@
     const submissionId = document.getElementById('submissionId').value;
     let remainingSeconds = parseInt(document.getElementById('remainingSeconds').value);
     const textarea = document.getElementById('answerTextarea');
+    window.isNavigating = false;
     
-    window.onbeforeunload = function() { if(remainingSeconds > 0) return "Exam in progress!"; };
+    window.onbeforeunload = function() { if(remainingSeconds > 0 && !window.isNavigating) return "Exam in progress!"; };
 
     // Auto-save logic
-    setInterval(saveAnswer, 15000); 
+    setInterval(saveAnswer, 5000); 
     textarea.addEventListener('input', debounce(saveAnswer, 3000));
 
     async function saveAnswer() {
         const statusEl = document.getElementById('saveStatus');
         statusEl.innerHTML = '<span class="status-saving">Saving progress...</span>';
         
+        const promises = [];
+        promises.push(fetch('/api/answer/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                submissionId, 
+                answer: textarea.value,
+                remainingSeconds: remainingSeconds,
+                currentSection: 0,
+                currentQuestionId: null
+            })
+        }));
+
+        if (window.saveAllCanvasesImmediately) {
+            promises.push(window.saveAllCanvasesImmediately());
+        }
+        
         try {
-            await fetch('/api/answer/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ submissionId, answer: textarea.value })
-            });
+            await Promise.all(promises);
             statusEl.innerHTML = '<span class="status-saved">✓ Progress Auto-saved</span>';
             setTimeout(() => { statusEl.innerHTML = ''; }, 2000);
         } catch (error) {}
@@ -121,6 +147,7 @@
     function autoSubmitExam() { alert("Time up!"); submitExam(); }
 
     async function submitExam() {
+        window.isNavigating = true;
         textarea.disabled = true;
         await saveAnswer();
         try {
@@ -129,11 +156,30 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ submissionId })
             });
-            if (response.ok) window.location.href = '/student/exam/dashboard';
+            if (response.ok) window.location.href = '/student/exam/feedback';
         } catch (error) {}
     }
 
+    window.addEventListener('unload', function() {
+        if (remainingSeconds > 0 && !window.isNavigating) {
+            const body = {
+                submissionId: submissionId,
+                answer: textarea.value,
+                remainingSeconds: remainingSeconds,
+                currentSection: 0,
+                currentQuestionId: null
+            };
+            const blob = new Blob([JSON.stringify(body)], { type: 'application/json' });
+            navigator.sendBeacon('/api/answer/save', blob);
+        }
+    });
+
     window.onload = startTimer;
 </script>
+
+<!-- Drawing Canvas JS Engine -->
+<script src="/js/canvas.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+

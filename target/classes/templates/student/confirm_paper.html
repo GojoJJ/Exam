@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Confirm Exam Details | Student Portal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Premium Global Theme Style & Toggle -->
+    <link href="/css/canvas.css" rel="stylesheet">
+    
     <style>
         :root {
             --primary-blue: #2b6cb0;
@@ -186,12 +187,16 @@
             <img th:src="@{/images/logo.png}" alt="University Logo" onerror="this.src='https://via.placeholder.com/180x60?text=University+Logo'">
         </div>
         
-        <div class="header-section">
-            <div class="header-icon">
-                <i class="fas fa-user-check"></i>
+        <!-- Premium Welcome Section with Avatar & Initials -->
+        <div class="header-section text-center">
+            <div class="avatar-container mb-3 d-flex justify-content-center">
+                <div class="student-avatar d-flex align-items-center justify-content-center rounded-circle shadow-sm" 
+                     style="width: 76px; height: 76px; background: linear-gradient(135deg, var(--primary-blue), var(--accent-purple)); color: white; font-size: 2rem; font-weight: 800; border: 4px solid #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                    <span th:text="${#strings.substring(student.studentName ?: 'S', 0, 1).toUpperCase()}">S</span>
+                </div>
             </div>
-            <h2>Confirm Exam Details</h2>
-            <p class="text-muted small fw-medium">Please verify your information before starting the examination.</p>
+            <h2>Welcome, <span th:text="${student.studentName ?: 'Student'}">Student</span>!</h2>
+            <p class="text-muted small fw-medium">Please verify your academic information before initiating the exam.</p>
         </div>
 
         <!-- Student Details Grid -->
@@ -202,15 +207,23 @@
             </div>
             <div class="detail-item">
                 <span class="label">Student Name</span>
-                <span class="value" th:text="${student.name ?: 'Not Available'}">John Doe</span>
+                <span class="value text-primary fw-bold" th:text="${student.studentName != null ? student.studentName : 'Not Available'}">John Doe</span>
             </div>
             <div class="detail-item">
                 <span class="label">Academic Semester</span>
-                <span class="value" th:text="${student.semester ?: 'Not Available'}">Semester 1</span>
+                <span class="value" 
+                      th:text="${student.semester != null ? student.semester : (paper.semester != null ? paper.semester : 'Not Available')}"
+                      th:classappend="${student.semester == null and paper.semester == null} ? 'badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1' : ''">Semester 1</span>
             </div>
             <div class="detail-item">
                 <span class="label">Division / Batch</span>
-                <span class="value" th:text="${student.division ?: 'Not Available'}">Division A</span>
+                <span class="value" 
+                      th:text="${student.division != null ? student.division : 'Not Assigned'}"
+                      th:classappend="${student.division == null} ? 'badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1' : ''">Division A</span>
+            </div>
+            <div class="detail-item" th:if="${student.rollNo != null}">
+                <span class="label">Roll Number</span>
+                <span class="value" th:text="${student.rollNo}">1</span>
             </div>
         </div>
 
@@ -220,13 +233,21 @@
             <div class="meta-info">
                 <span>
                     <i class="fas fa-clock"></i> 
-                    <span th:text="${paper.durationMinutes ?: 120}">120</span> Minutes
+                    <span th:text="${paper.examDuration ?: 120}">120</span> Minutes
                 </span>
                 <span th:if="${paper.totalMarks != null}">
                     <i class="fas fa-star"></i> 
                     <span th:text="${paper.totalMarks}">100</span> Total Marks
                 </span>
             </div>
+        </div>
+
+        <!-- Manual Content Preview (For Direct Manual Papers) -->
+        <div th:if="${paper.manualContent != null and !paper.manualContent.trim().isEmpty()}" class="mb-4 p-4 rounded-4 bg-light border border-light-subtle">
+            <h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.5px;">
+                <i class="fas fa-file-signature text-success me-2"></i> Paper Reference Content
+            </h6>
+            <pre style="white-space: pre-wrap; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #4a5568; line-height: 1.6; max-height: 200px; overflow-y: auto;" th:text="${paper.manualContent}"></pre>
         </div>
 
         <!-- Action Button -->
@@ -241,5 +262,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Global Theme Engine -->
+<script src="/js/canvas.js"></script>
 </body>
 </html>
