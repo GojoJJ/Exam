@@ -11,11 +11,24 @@ public class Exam {
 
     private String examName;
     private String course;
+    @Column(name = "target_semester")
     private String semester;
     private String subject;
     private Double totalMarks;
     @Column(name = "exam_duration")
     private Integer examDuration;
+
+    @Column(name = "exam_status")
+    private String examStatus = "DRAFT"; // DRAFT, PUBLISHED, ACTIVE, ENDED
+
+    @Column(name = "activation_time")
+    private java.time.LocalDateTime activationTime;
+
+    @Column(name = "published_time")
+    private java.time.LocalDateTime publishedTime;
+
+    @Column(name = "activated_time")
+    private java.time.LocalDateTime activatedTime;
 
     public Exam() {}
 
@@ -33,4 +46,15 @@ public class Exam {
     public void setTotalMarks(Double totalMarks) { this.totalMarks = totalMarks; }
     public Integer getExamDuration() { return examDuration; }
     public void setExamDuration(Integer examDuration) { this.examDuration = examDuration; }
+
+    public String getExamStatus() { return examStatus; }
+    public void setExamStatus(String examStatus) { this.examStatus = examStatus; }
+    public java.time.LocalDateTime getActivationTime() { return activationTime; }
+    public void setActivationTime(java.time.LocalDateTime activationTime) { this.activationTime = activationTime; }
+
+    public java.time.LocalDateTime getPublishedTime() { return publishedTime; }
+    public void setPublishedTime(java.time.LocalDateTime publishedTime) { this.publishedTime = publishedTime; }
+    public java.time.LocalDateTime getActivatedTime() { return activatedTime; }
+    public void setActivatedTime(java.time.LocalDateTime activatedTime) { this.activatedTime = activatedTime; }
 }
+

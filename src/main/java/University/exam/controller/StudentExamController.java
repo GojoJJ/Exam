@@ -43,6 +43,9 @@ public class StudentExamController {
     @Autowired
     private FeedbackRepository feedbackRepository;
 
+    @Autowired
+    private ResultRepository resultRepository;
+
     @GetMapping("/dashboard")
     public String dashboard(HttpSession session, Model model) {
         // Since we are mocking login during dev, fallback to a mock student if null
@@ -67,11 +70,26 @@ public class StudentExamController {
     }
 
     @GetMapping("/rules/{id}")
-    public String rules(@PathVariable Long id, @RequestParam(required = false) String error, HttpSession session, Model model) {
+    public String rules(@PathVariable("id") Long id, @RequestParam(name = "error", required = false) String error, HttpSession session, Model model) {
         if (session.getAttribute("loggedInStudent") == null) return "redirect:/login";
 
         Exam exam = examRepository.findById(id).orElse(null);
         if (exam == null) return "redirect:/student/rules";
+        if ("ENDED".equals(exam.getExamStatus())) {
+            return "redirect:/student/rules";
+        }
+
+        // Semester Access Control
+        String enrollmentNo = (String) session.getAttribute("loggedInStudent");
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
+        String studentSem = student != null ? student.getSemester() : "Semester 3";
+        if (!Student.matchesSemester(studentSem, exam.getSemester())) {
+            try {
+                return "redirect:/student/rules?error=" + java.net.URLEncoder.encode("Access Denied. This examination is not assigned to your semester.", java.nio.charset.StandardCharsets.UTF_8.name());
+            } catch (Exception e) {
+                return "redirect:/student/rules?error=access_denied";
+            }
+        }
 
         if (error != null) {
             if ("already_submitted".equals(error)) {
@@ -88,14 +106,27 @@ public class StudentExamController {
     }
 
     @GetMapping("/start/{id}")
-    public String startExam(@PathVariable Long id, HttpSession session, Model model) {
+    public String startExam(@PathVariable("id") Long id, HttpSession session, Model model) {
         String enrollmentNo = (String) session.getAttribute("loggedInStudent");
         if (enrollmentNo == null) return "redirect:/login";
 
         Exam exam = examRepository.findById(id).orElse(null);
         if (exam == null) return "redirect:/student/rules";
 
+        // Semester Access Control
         Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
+        String studentSem = student != null ? student.getSemester() : "Semester 3";
+        if (!Student.matchesSemester(studentSem, exam.getSemester())) {
+            try {
+                return "redirect:/student/rules?error=" + java.net.URLEncoder.encode("Access Denied. This examination is not assigned to your semester.", java.nio.charset.StandardCharsets.UTF_8.name());
+            } catch (Exception e) {
+                return "redirect:/student/rules?error=access_denied";
+            }
+        }
+
+        if (!"ACTIVE".equals(exam.getExamStatus()) && !"PUBLISHED".equals(exam.getExamStatus())) {
+            return "redirect:/student/exam/rules/" + id + "?error=Exam is not active yet. Please wait for the administrator to start the exam.";
+        }
 
         ExamAttempt attempt = examAttemptRepository.findByStudentEnrollmentNoAndExamId(enrollmentNo, id)
                 .orElseGet(() -> {
@@ -132,11 +163,26 @@ public class StudentExamController {
 
     // View: Rules for PDF-based paper
     @GetMapping("/paper-rules/{id}")
-    public String paperRules(@PathVariable Long id, @RequestParam(required = false) String error, HttpSession session, Model model) {
+    public String paperRules(@PathVariable("id") Long id, @RequestParam(name = "error", required = false) String error, HttpSession session, Model model) {
         if (session.getAttribute("loggedInStudent") == null) return "redirect:/login";
 
         Paper paper = paperRepository.findById(id).orElse(null);
         if (paper == null) return "redirect:/student/rules";
+        if ("ENDED".equals(paper.getExamStatus())) {
+            return "redirect:/student/rules";
+        }
+
+        // Semester Access Control
+        String enrollmentNo = (String) session.getAttribute("loggedInStudent");
+        Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
+        String studentSem = student != null ? student.getSemester() : "Semester 3";
+        if (!Student.matchesSemester(studentSem, paper.getSemester())) {
+            try {
+                return "redirect:/student/rules?error=" + java.net.URLEncoder.encode("Access Denied. This examination is not assigned to your semester.", java.nio.charset.StandardCharsets.UTF_8.name());
+            } catch (Exception e) {
+                return "redirect:/student/rules?error=access_denied";
+            }
+        }
         
         List<Question> questions = questionRepository.findByPaperId(id);
         if (questions == null || questions.isEmpty()) {
@@ -159,7 +205,7 @@ public class StudentExamController {
 
     // View: Start PDF-based exam (writing answers while viewing PDF)
     @GetMapping("/confirm-paper/{id}")
-    public String confirmPaperExam(@PathVariable Long id, HttpSession session, Model model) {
+    public String confirmPaperExam(@PathVariable("id") Long id, HttpSession session, Model model) {
         String enrollmentNo = (String) session.getAttribute("enrollment_no");
         if (enrollmentNo == null) {
             enrollmentNo = (String) session.getAttribute("loggedInStudent");
@@ -169,7 +215,21 @@ public class StudentExamController {
         Paper paper = paperRepository.findById(id).orElse(null);
         if (paper == null) return "redirect:/student/rules";
 
+        // Semester Access Control
         Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
+        String studentSem = student != null ? student.getSemester() : "Semester 3";
+        if (!Student.matchesSemester(studentSem, paper.getSemester())) {
+            try {
+                return "redirect:/student/rules?error=" + java.net.URLEncoder.encode("Access Denied. This examination is not assigned to your semester.", java.nio.charset.StandardCharsets.UTF_8.name());
+            } catch (Exception e) {
+                return "redirect:/student/rules?error=access_denied";
+            }
+        }
+
+        if (!"ACTIVE".equals(paper.getExamStatus()) && !"PUBLISHED".equals(paper.getExamStatus())) {
+            return "redirect:/student/exam/paper-rules/" + id + "?error=Exam is not active yet. Please wait for the administrator to start the exam.";
+        }
+
         if (student == null) {
             throw new RuntimeException("Student not found for enrollment: " + enrollmentNo);
         }
@@ -185,14 +245,27 @@ public class StudentExamController {
     }
 
     @GetMapping("/start-paper/{id}")
-    public String startPaperExam(@PathVariable Long id, HttpSession session, Model model) {
+    public String startPaperExam(@PathVariable("id") Long id, HttpSession session, Model model) {
         String enrollmentNo = (String) session.getAttribute("loggedInStudent");
         if (enrollmentNo == null) return "redirect:/login";
 
         Paper paper = paperRepository.findById(id).orElse(null);
         if (paper == null) return "redirect:/student/rules";
 
+        // Semester Access Control
         Student student = studentRepository.findByEnrollmentNo(enrollmentNo).orElse(null);
+        String studentSem = student != null ? student.getSemester() : "Semester 3";
+        if (!Student.matchesSemester(studentSem, paper.getSemester())) {
+            try {
+                return "redirect:/student/rules?error=" + java.net.URLEncoder.encode("Access Denied. This examination is not assigned to your semester.", java.nio.charset.StandardCharsets.UTF_8.name());
+            } catch (Exception e) {
+                return "redirect:/student/rules?error=access_denied";
+            }
+        }
+
+        if (!"ACTIVE".equals(paper.getExamStatus()) && !"PUBLISHED".equals(paper.getExamStatus())) {
+            return "redirect:/student/exam/paper-rules/" + id + "?error=Exam is not active yet. Please wait for the administrator to start the exam.";
+        }
 
         List<Question> questions = questionRepository.findByPaperId(id);
         if (questions == null || questions.isEmpty()) {
@@ -238,7 +311,7 @@ public class StudentExamController {
     }
 
     @GetMapping("/section/{index}")
-    public String loadSection(@PathVariable int index, HttpSession session, Model model) {
+    public String loadSection(@PathVariable("index") int index, HttpSession session, Model model) {
         String enrollmentNo = (String) session.getAttribute("loggedInStudent");
         if (enrollmentNo == null) return "redirect:/login";
 
@@ -261,8 +334,12 @@ public class StudentExamController {
         if ("paper".equals(type)) {
             Paper paper = paperRepository.findById(examId).orElse(null);
             if (paper == null) return "redirect:/student/rules";
+            if (!"ACTIVE".equals(paper.getExamStatus()) && !"PUBLISHED".equals(paper.getExamStatus())) {
+                return "redirect:/student/exam/paper-rules/" + examId + "?error=Exam is not active yet.";
+            }
             sections = sectionService.getSectionsByPaperId(examId);
             model.addAttribute("exam", paper);
+
             
             Submission submission = submissionRepository.findById(attemptId).orElse(null);
             if (submission != null) {
@@ -279,8 +356,12 @@ public class StudentExamController {
         } else {
             Exam exam = examRepository.findById(examId).orElse(null);
             if (exam == null) return "redirect:/student/rules";
+            if (!"ACTIVE".equals(exam.getExamStatus()) && !"PUBLISHED".equals(exam.getExamStatus())) {
+                return "redirect:/student/exam/rules/" + examId + "?error=Exam is not active yet.";
+            }
             sections = sectionService.getSectionsByExamId(examId);
             model.addAttribute("exam", exam);
+
             
             ExamAttempt attempt = examAttemptRepository.findById(attemptId).orElse(null);
             if (attempt != null) {
@@ -377,11 +458,11 @@ public class StudentExamController {
 
     @PostMapping("/feedback")
     public String submitFeedback(
-            @RequestParam Integer rating,
-            @RequestParam(required = false) String comments,
-            @RequestParam(required = false) String systemEasyToUse,
-            @RequestParam(required = false) String paperClear,
-            @RequestParam(required = false) String technicalIssues,
+            @RequestParam("rating") Integer rating,
+            @RequestParam(name = "comments", required = false) String comments,
+            @RequestParam(name = "systemEasyToUse", required = false) String systemEasyToUse,
+            @RequestParam(name = "paperClear", required = false) String paperClear,
+            @RequestParam(name = "technicalIssues", required = false) String technicalIssues,
             HttpSession session) {
             
         String enrollmentNo = (String) session.getAttribute("loggedInStudent");
@@ -486,14 +567,96 @@ public class StudentExamController {
         if ("paper".equals(type)) {
             Submission submission = submissionRepository.findById(attemptId).orElse(null);
             if (submission != null && !"Submitted".equals(submission.getStatus())) {
+                // Auto-create missing/skipped Answers with 0 marks
+                if (submission.getPaper() != null) {
+                    List<Question> questions = questionRepository.findByPaperId(submission.getPaper().getId());
+                    List<Answer> existingAnswers = answerRepository.findBySubmissionId(submission.getId());
+                    java.util.Set<Long> answeredQuestionIds = new java.util.HashSet<>();
+                    if (existingAnswers != null) {
+                        for (Answer ans : existingAnswers) {
+                            if (ans.getQuestion() != null) {
+                                answeredQuestionIds.add(ans.getQuestion().getId());
+                            }
+                        }
+                    }
+                    if (questions != null) {
+                        for (Question q : questions) {
+                            if (!answeredQuestionIds.contains(q.getId())) {
+                                Answer ans = new Answer();
+                                ans.setSubmission(submission);
+                                ans.setQuestion(q);
+                                ans.setQuestionText(q.getText());
+                                ans.setStudentAnswer("");
+                                ans.setMaxMarks(q.getMarks() != null ? q.getMarks() : 0.0);
+                                ans.setMarksObtained(0.0);
+                                ans.setUpdatedAt(LocalDateTime.now());
+                                answerRepository.save(ans);
+                            }
+                        }
+                    }
+                }
+
                 submission.setStatus("Terminated");
                 submission.setSubmittedAt(LocalDateTime.now());
                 submissionRepository.save(submission);
                 System.out.println("Submission status marked as Terminated: " + attemptId);
+
+                // Auto-create Result record for terminated paper exam
+                Result result = resultRepository.findBySubmissionId(submission.getId()).orElse(new Result());
+                result.setSubmission(submission);
+                result.setObtainedMarks(0.0);
+                result.setTotalMarks(submission.getPaper() != null && submission.getPaper().getTotalMarks() != null ? submission.getPaper().getTotalMarks() : 100.0);
+                result.setResultStatus("TERMINATED");
+                result.setPercentage(0.0);
+                result.setGrade("F");
+                result.setTerminationReason("Proctoring violation (tab switch or blur) during exam");
+                result.setTerminatedAt(LocalDateTime.now());
+                
+                if (submission.getStudent() != null) {
+                    result.setEnrollmentNo(submission.getStudent().getEnrollmentNo());
+                    result.setStudentName(submission.getStudent().getStudentName());
+                    result.setDivision(submission.getStudent().getDivision());
+                    result.setSemester(submission.getStudent().getSemester());
+                    result.setRollNo(submission.getStudent().getRollNo());
+                }
+                if (submission.getPaper() != null) {
+                    result.setSubjectName(submission.getPaper().getSubject());
+                    result.setExamName(submission.getPaper().getCourse() != null ? submission.getPaper().getCourse() : "Theory Exam");
+                }
+                resultRepository.saveAndFlush(result);
             }
         } else {
             ExamAttempt attempt = examAttemptRepository.findById(attemptId).orElse(null);
             if (attempt != null && !"Submitted".equals(attempt.getStatus())) {
+                // Auto-create missing/skipped Answers with 0 marks
+                if (attempt.getExam() != null) {
+                    List<Question> questions = questionRepository.findByExamId(attempt.getExam().getId());
+                    List<Answer> existingAnswers = answerRepository.findByExamAttemptId(attempt.getId());
+                    java.util.Set<Long> answeredQuestionIds = new java.util.HashSet<>();
+                    if (existingAnswers != null) {
+                        for (Answer ans : existingAnswers) {
+                            if (ans.getQuestion() != null) {
+                                answeredQuestionIds.add(ans.getQuestion().getId());
+                            }
+                        }
+                    }
+                    if (questions != null) {
+                        for (Question q : questions) {
+                            if (!answeredQuestionIds.contains(q.getId())) {
+                                Answer ans = new Answer();
+                                ans.setExamAttempt(attempt);
+                                ans.setQuestion(q);
+                                ans.setQuestionText(q.getText());
+                                ans.setStudentAnswer("");
+                                ans.setMaxMarks(q.getMarks() != null ? q.getMarks() : 0.0);
+                                ans.setMarksObtained(0.0);
+                                ans.setUpdatedAt(LocalDateTime.now());
+                                answerRepository.save(ans);
+                            }
+                        }
+                    }
+                }
+
                 attempt.setStatus("Terminated");
                 attempt.setEndTime(LocalDateTime.now());
                 examAttemptRepository.save(attempt);
@@ -511,5 +674,151 @@ public class StudentExamController {
         session.removeAttribute("currentExamType");
         session.removeAttribute("currentAttemptId");
         return "student/terminated";
+    }
+
+    @GetMapping("/resume")
+    public String resumeExam(HttpSession session, Model model) {
+        String enrollmentNo = (String) session.getAttribute("loggedInStudent");
+        if (enrollmentNo == null) return "redirect:/login";
+
+        // Check if there is an ongoing ExamAttempt
+        java.util.List<ExamAttempt> attempts = examAttemptRepository.findByStudentEnrollmentNo(enrollmentNo);
+        ExamAttempt ongoingAttempt = null;
+        if (attempts != null) {
+            for (ExamAttempt attempt : attempts) {
+                if ("Ongoing".equals(attempt.getStatus())) {
+                    ongoingAttempt = attempt;
+                    break;
+                }
+            }
+        }
+
+        // Check if there is an ongoing Submission
+        java.util.List<Submission> submissions = submissionRepository.findByStudentEnrollmentNo(enrollmentNo);
+        Submission ongoingSubmission = null;
+        if (submissions != null) {
+            for (Submission sub : submissions) {
+                if ("Ongoing".equals(sub.getStatus())) {
+                    ongoingSubmission = sub;
+                    break;
+                }
+            }
+        }
+
+        if (ongoingAttempt == null && ongoingSubmission == null) {
+            return "redirect:/student/rules";
+        }
+
+        String examName = "";
+        String lastSaved = "N/A";
+        long remainingSeconds = 0;
+        Long attemptId = null;
+        String type = "";
+
+        if (ongoingAttempt != null) {
+            examName = ongoingAttempt.getExam().getExamName() != null ? ongoingAttempt.getExam().getExamName() : ongoingAttempt.getExam().getSubject();
+            if (ongoingAttempt.getLastSavedAt() != null) {
+                lastSaved = ongoingAttempt.getLastSavedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            } else {
+                lastSaved = ongoingAttempt.getStartTime().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            }
+            remainingSeconds = ongoingAttempt.getRemainingTimeSeconds() != null ? ongoingAttempt.getRemainingTimeSeconds() : (ongoingAttempt.getExam().getExamDuration() * 60);
+            attemptId = ongoingAttempt.getId();
+            type = "exam";
+            
+            // Mark attempt as paused if not already
+            if (!Boolean.TRUE.equals(ongoingAttempt.getIsPaused())) {
+                ongoingAttempt.setIsPaused(true);
+                ongoingAttempt.setPausedAt(LocalDateTime.now());
+                ongoingAttempt.setPauseCount((ongoingAttempt.getPauseCount() != null ? ongoingAttempt.getPauseCount() : 0) + 1);
+                examAttemptRepository.save(ongoingAttempt);
+            }
+        } else {
+            examName = ongoingSubmission.getPaper().getSubject();
+            if (ongoingSubmission.getLastSavedAt() != null) {
+                lastSaved = ongoingSubmission.getLastSavedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            } else {
+                lastSaved = ongoingSubmission.getSubmittedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            }
+            remainingSeconds = ongoingSubmission.getRemainingTimeSeconds() != null ? ongoingSubmission.getRemainingTimeSeconds() : (ongoingSubmission.getPaper().getExamDuration() * 60);
+            attemptId = ongoingSubmission.getId();
+            type = "paper";
+
+            // Mark submission as paused if not already
+            if (!Boolean.TRUE.equals(ongoingSubmission.getIsPaused())) {
+                ongoingSubmission.setIsPaused(true);
+                ongoingSubmission.setPausedAt(LocalDateTime.now());
+                ongoingSubmission.setPauseCount((ongoingSubmission.getPauseCount() != null ? ongoingSubmission.getPauseCount() : 0) + 1);
+                submissionRepository.save(ongoingSubmission);
+            }
+        }
+
+        long hrs = remainingSeconds / 3600;
+        long mins = (remainingSeconds % 3600) / 60;
+        long secs = remainingSeconds % 60;
+        String remainingTimeFormatted = String.format("%02d:%02d:%02d", hrs, mins, secs);
+
+        model.addAttribute("examName", examName);
+        model.addAttribute("lastSaved", lastSaved);
+        model.addAttribute("remainingTimeFormatted", remainingTimeFormatted);
+        model.addAttribute("attemptId", attemptId);
+        model.addAttribute("type", type);
+
+        return "student/resume";
+    }
+
+    @PostMapping("/resume")
+    public String performResume(
+            @RequestParam("attemptId") Long attemptId,
+            @RequestParam("type") String type,
+            @RequestParam("reason") String reason,
+            HttpSession session) {
+        
+        String enrollmentNo = (String) session.getAttribute("loggedInStudent");
+        if (enrollmentNo == null) return "redirect:/login";
+
+        if ("exam".equals(type)) {
+            ExamAttempt attempt = examAttemptRepository.findById(attemptId).orElse(null);
+            if (attempt != null && "Ongoing".equals(attempt.getStatus())) {
+                long totalSeconds = attempt.getExam().getExamDuration() != null ? attempt.getExam().getExamDuration() * 60 : 3600;
+                long remaining = attempt.getRemainingTimeSeconds() != null ? attempt.getRemainingTimeSeconds() : totalSeconds;
+                
+                attempt.setStartTime(LocalDateTime.now().minusSeconds(totalSeconds - remaining));
+                attempt.setIsPaused(false);
+                attempt.setResumedAt(LocalDateTime.now());
+                attempt.setResumeCount((attempt.getResumeCount() != null ? attempt.getResumeCount() : 0) + 1);
+                attempt.setInterruptionReason(reason);
+                examAttemptRepository.save(attempt);
+
+                session.setAttribute("currentExamId", attempt.getExam().getId());
+                session.setAttribute("currentExamType", "exam");
+                session.setAttribute("currentAttemptId", attempt.getId());
+
+                int lastSec = attempt.getLastActiveSection() != null ? attempt.getLastActiveSection() : 0;
+                return "redirect:/student/exam/section/" + lastSec;
+            }
+        } else {
+            Submission submission = submissionRepository.findById(attemptId).orElse(null);
+            if (submission != null && "Ongoing".equals(submission.getStatus())) {
+                long totalSeconds = (submission.getPaper().getExamDuration() != null ? submission.getPaper().getExamDuration() : 120) * 60;
+                long remaining = submission.getRemainingTimeSeconds() != null ? submission.getRemainingTimeSeconds() : totalSeconds;
+
+                submission.setSubmittedAt(LocalDateTime.now().minusSeconds(totalSeconds - remaining));
+                submission.setIsPaused(false);
+                submission.setResumedAt(LocalDateTime.now());
+                submission.setResumeCount((submission.getResumeCount() != null ? submission.getResumeCount() : 0) + 1);
+                submission.setInterruptionReason(reason);
+                submissionRepository.save(submission);
+
+                session.setAttribute("currentExamId", submission.getPaper().getId());
+                session.setAttribute("currentExamType", "paper");
+                session.setAttribute("currentAttemptId", submission.getId());
+
+                int lastSec = submission.getLastActiveSection() != null ? submission.getLastActiveSection() : 0;
+                return "redirect:/student/exam/section/" + lastSec;
+            }
+        }
+
+        return "redirect:/student/rules";
     }
 }

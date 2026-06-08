@@ -10,108 +10,111 @@
     
     <style>
         :root {
+            --primary: #ff6b00;
+            --primary-hover: #ea580c;
+            --sidebar-bg: #090d16;
             --bg-canvas: #f8fafc;
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
-            --text-main: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.7);
+            --autofill-bg: #ffffff;
+            --border-color: rgba(0, 0, 0, 0.06);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
             --text-muted: #64748b;
-            --sidebar-width: 280px;
-            --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
-            --transition-smooth: all 0.2s ease-in-out;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --sidebar-width: 260px;
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.02), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            --card-shadow-hover: 0 20px 35px -8px rgba(255, 107, 0, 0.08), 0 10px 15px -10px rgba(0, 0, 0, 0.02);
+        }
+
+        body.dark-theme {
+            --bg-canvas: #090d16;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --autofill-bg: #111827;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f9fafb;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --sidebar-bg: #111827;
+            --sidebar-hover: rgba(255, 255, 255, 0.04);
+        }
+
+        body, .card, .form-select, .form-control, .segmented-control, .upload-dropzone {
+            transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
         }
 
         body {
             background-color: var(--bg-canvas);
-            color: var(--text-main);
-            font-family: 'Outfit', sans-serif !important;
+            color: var(--text-secondary);
+            font-family: 'Inter', sans-serif !important;
+            font-size: 14px;
             min-height: 100vh;
         }
 
         .main-content {
             margin-left: var(--sidebar-width);
-            padding: 3rem;
-            transition: var(--transition-smooth);
-        }
-
-        .page-header {
-            margin-bottom: 2.5rem;
-        }
-
-        /* Premium Form Card */
-        .form-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 24px;
             padding: 2.5rem;
-            box-shadow: var(--card-shadow);
+            transition: var(--transition-smooth);
+            background-color: var(--bg-canvas);
         }
 
-        .form-label {
-            font-size: 0.9rem;
+        /* Segmented Control Toggle CSS */
+        .segmented-control {
+            background-color: var(--bg-canvas) !important;
+            padding: 5px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+        }
+
+        .segmented-control .btn {
+            font-family: 'Outfit', sans-serif;
+            border-radius: 10px !important;
+            font-size: 13px;
             font-weight: 600;
-            color: #334155;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .form-control, .form-select {
-            border: 1.5px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 0.75rem 1rem;
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: var(--text-main);
+            padding: 0.6rem 1rem;
             transition: var(--transition-smooth);
         }
 
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
-            outline: none;
+        .btn-check:checked + .btn-toggle-custom {
+            background-color: var(--card-bg) !important;
+            color: var(--primary) !important;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05) !important;
+            font-weight: 700 !important;
+        }
+
+        body.dark-theme .btn-check:checked + .btn-toggle-custom {
+            background-color: var(--card-bg) !important;
+            color: #ffffff !important;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        .btn-check:not(:checked) + .btn-toggle-custom {
+            background-color: transparent !important;
+            color: var(--text-secondary) !important;
+            font-weight: 600 !important;
         }
 
         /* Drag & Drop File Zone */
         .upload-dropzone {
-            border: 2px dashed #cbd5e1;
+            border: 2px dashed var(--border-color);
             border-radius: 16px;
-            background: #f8fafc;
-            padding: 3rem 2rem;
+            background: var(--card-bg);
+            padding: 4rem 2rem;
             text-align: center;
             position: relative;
             cursor: pointer;
             transition: var(--transition-smooth);
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.01);
         }
 
         .upload-dropzone:hover {
             border-color: var(--primary);
-            background: #f5f3ff;
+            background: rgba(255, 107, 0, 0.02);
+            transform: scale(1.005);
         }
 
-        .upload-icon-circle {
-            width: 64px;
-            height: 64px;
-            background: #ffffff;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
-            margin-bottom: 1rem;
-            color: var(--primary);
-            font-size: 1.75rem;
-            transition: var(--transition-smooth);
-            border: 1px solid #e2e8f0;
-        }
-
-        .upload-dropzone:hover .upload-icon-circle {
-            transform: scale(1.1) translateY(-2px);
-            color: white;
-            background: var(--primary);
-            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.2);
-        }
-
-        /* Hidden Input layered on top to capture clicks/drags */
         .real-file-input {
             position: absolute;
             top: 0;
@@ -123,156 +126,236 @@
             z-index: 10;
         }
 
-        .btn-submit {
-            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-            color: white;
-            font-weight: 600;
-            padding: 0.85rem 2rem;
-            border-radius: 12px;
-            border: none;
-            transition: var(--transition-smooth);
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+        /* Floating label focus border */
+        .form-floating > .form-control:focus,
+        .form-floating > .form-select:focus {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.15) !important;
         }
-
-        .btn-submit:hover {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            color: white;
-            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
-            transform: translateY(-1px);
-        }
-
-        .btn-clear {
-            background: #f1f5f9;
-            color: #475569;
-            font-weight: 600;
-            padding: 0.85rem 2rem;
+        
+        .form-control, .form-select {
+            background-color: var(--card-bg) !important;
+            color: var(--text-primary) !important;
             border-radius: 12px;
-            border: 1px solid #e2e8f0;
+            border: 1.5px solid var(--border-color);
+            font-weight: 500;
             transition: var(--transition-smooth);
         }
 
-        .btn-clear:hover {
-            background: #e2e8f0;
-            color: #0f172a;
+        .form-floating > label {
+            color: var(--text-muted);
+            transition: var(--transition-smooth);
         }
 
-        @media (max-width: 991px) {
+        /* Override Bootstrap 5 floating label background mask for dark theme/custom theme */
+        .form-floating > .form-control:focus ~ label::after,
+        .form-floating > .form-control:not(:placeholder-shown) ~ label::after,
+        .form-floating > .form-control-plaintext ~ label::after,
+        .form-floating > .form-select ~ label::after {
+            background-color: var(--card-bg) !important;
+            color: var(--text-muted) !important;
+        }
+
+        /* Label colors for floating label states */
+        .form-floating > .form-control:focus ~ label,
+        .form-floating > .form-select:focus ~ label {
+            color: var(--primary) !important;
+        }
+
+        .form-floating > .form-control:not(:placeholder-shown) ~ label,
+        .form-floating > .form-select ~ label {
+            color: var(--text-muted);
+        }
+
+        /* Ensure options inside select have proper background and color in dark mode */
+        body.dark-theme select.form-select option {
+            background-color: #111827 !important;
+            color: var(--text-primary) !important;
+        }
+
+        /* Autofill overrides */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus,
+        textarea:-webkit-autofill,
+        textarea:-webkit-autofill:hover,
+        textarea:-webkit-autofill:focus,
+        select:-webkit-autofill,
+        select:-webkit-autofill:hover,
+        select:-webkit-autofill:focus {
+            -webkit-text-fill-color: var(--text-primary) !important;
+            -webkit-box-shadow: 0 0 0px 1000px var(--autofill-bg) inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+
+        .text-primary {
+            color: var(--primary) !important;
+        }
+
+        /* Cards SaaS Styling */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color) !important;
+            border-radius: 20px !important;
+            box-shadow: var(--card-shadow) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: var(--transition-smooth);
+        }
+
+        /* Standard 44px Button heights */
+        .btn-action-saas {
+            height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-weight: 600;
+            padding: 0 1.75rem;
+        }
+
+        @media (max-width: 991.98px) {
             .main-content {
                 margin-left: 0;
                 padding: 1.5rem;
             }
         }
     </style>
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem("theme") || "light";
+            if (savedTheme === "dark") {
+                document.documentElement.classList.add("dark-theme");
+            }
+        })();
+    </script>
 </head>
 <body>
 
-    <!-- Include Sidebar -->
+    <!-- Include Sidebar Fragment -->
     <div th:replace="~{admin/fragments :: sidebar('upload')}"></div>
 
     <main class="main-content">
-        <!-- Header -->
-        <div class="page-header">
-            <h2 class="fw-bold text-dark"><i class="bi bi-cloud-arrow-up-fill text-primary me-2"></i>Upload Question Paper</h2>
-            <p class="text-muted mb-0">Instantly distribute exam papers to your class and trigger automated section extraction.</p>
-        </div>
+        <!-- Page Header -->
+        <header class="d-flex flex-wrap align-items-center justify-content-between pb-3 mb-4 border-bottom" style="border-bottom-color: var(--border-color) !important;">
+            <div>
+                <h1 class="h2 mb-1" style="color: var(--text-primary) !important;">Upload Question Paper</h1>
+                <p class="text-meta small mb-0">Add new exam papers to the system</p>
+            </div>
+            
+            <div class="d-flex align-items-center gap-3 mt-3 mt-md-0">
+                <div class="profile-avatar bg-primary text-white" style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 700;" th:text="${#strings.substring(adminName, 0, 1)}">S</div>
+            </div>
+        </header>
 
-        <!-- Form Card -->
-        <div class="form-card max-w-75">
+        <!-- Form Card Container -->
+        <div class="card border-0 p-4">
             <form th:action="@{/admin/upload-paper}" method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
                 
-                <div class="row g-4">
-                    <!-- Subject -->
+                <!-- Section 1: Exam Details -->
+                <h4 class="h4 mb-3" style="color: var(--text-primary) !important;">Exam Details</h4>
+                <div class="row g-3 mb-4">
+                    <!-- Row 1: Subject Name & Course Name -->
                     <div class="col-md-6">
-                        <label for="subject" class="form-label">Subject Name</label>
-                        <input type="text" class="form-control" id="subject" name="subject" placeholder="e.g. Advanced Java Programming" required>
-                        <div class="invalid-feedback">Please provide a valid subject name.</div>
-                    </div>
-
-                    <!-- Course -->
-                    <div class="col-md-6">
-                        <label for="course" class="form-label">Course Name</label>
-                        <input type="text" class="form-control" id="course" name="course" placeholder="e.g. BCA / MCA / BTech" required>
-                        <div class="invalid-feedback">Please provide a course name.</div>
-                    </div>
-
-                    <!-- Semester -->
-                    <div class="col-md-6">
-                        <label for="semester" class="form-label">Semester</label>
-                        <select class="form-select" id="semester" name="semester" required>
-                            <option value="" selected disabled>Select Semester</option>
-                            <option value="1">Semester 1</option>
-                            <option value="2">Semester 2</option>
-                            <option value="3">Semester 3</option>
-                            <option value="4">Semester 4</option>
-                            <option value="5">Semester 5</option>
-                            <option value="6">Semester 6</option>
-                        </select>
-                        <div class="invalid-feedback">Please select an academic semester.</div>
-                    </div>
-
-                    <!-- Exam Duration -->
-                    <div class="col-md-6">
-                        <label for="duration" class="form-label">Exam Duration (in Minutes)</label>
-                        <input type="number" class="form-control" id="duration" name="duration" placeholder="e.g. 120" min="1" max="300" required>
-                        <div class="invalid-feedback">Please enter valid exam duration (1-300 minutes).</div>
-                    </div>
-
-                    <!-- Total Marks -->
-                    <div class="col-md-6">
-                        <label for="totalMarks" class="form-label">Total Marks</label>
-                        <input type="number" class="form-control" id="totalMarks" name="totalMarks" placeholder="e.g. 100" min="1" max="500" required>
-                        <div class="invalid-feedback">Please enter valid total marks (1-500).</div>
-                    </div>
-
-                    <!-- Beautiful Toggle Tabs for Paper Type -->
-                    <div class="col-12 mt-4">
-                        <label class="form-label d-block">Paper Source Type</label>
-                        <div class="btn-group w-100" role="group" aria-label="Paper Type Select">
-                            <input type="radio" class="btn-check" name="paperSource" id="sourceFile" autocomplete="off" checked>
-                            <label class="btn btn-outline-primary py-3 fw-bold rounded-start-4" for="sourceFile" style="border-width: 1.5px;">
-                                <i class="bi bi-file-earmark-pdf me-2"></i> Upload Document (PDF / DOCX)
-                            </label>
-                            
-                            <input type="radio" class="btn-check" name="paperSource" id="sourceManual" autocomplete="off">
-                            <label class="btn btn-outline-primary py-3 fw-bold rounded-end-4" for="sourceManual" style="border-width: 1.5px;">
-                                <i class="bi bi-pencil-square me-2"></i> Enter Paper Questions Manually
-                            </label>
+                        <div class="form-floating">
+                            <input type="text" class="form-control fw-medium" id="subject" name="subject" placeholder=" " required>
+                            <label for="subject">Subject Name</label>
+                            <div class="invalid-feedback">Please provide a valid subject name.</div>
                         </div>
                     </div>
 
-                    <!-- File Upload Option Panel -->
-                    <div class="col-12 mt-4" id="panel-file-upload">
-                        <label class="form-label">Upload Question Paper (PDF / DOCX)</label>
-                        <div class="upload-dropzone" id="dropzone">
-                            <!-- Real Input (Invisible layered on top) -->
-                            <input class="real-file-input" type="file" id="paperFile" name="file" accept=".pdf,.doc,.docx" required>
-                            
-                            <div class="upload-icon-circle">
-                                <i class="bi bi-cloud-arrow-up"></i>
-                            </div>
-                            <h5 class="fw-bold mb-1" id="file-name-label">Drag & Drop file here or click to browse</h5>
-                            <p class="text-muted small mb-0">Accepted formats: <strong>.pdf</strong>, <strong>.docx</strong> (Max 5MB)</p>
-                            <div class="invalid-feedback mt-2">Please upload a valid paper document.</div>
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            <input type="text" class="form-control fw-medium" id="course" name="course" placeholder=" " required>
+                            <label for="course">Course Name</label>
+                            <div class="invalid-feedback">Please provide a course name.</div>
                         </div>
                     </div>
 
-                    <!-- Manual Entry Option Panel -->
-                    <div class="col-12 mt-4 d-none" id="panel-manual-entry">
-                        <label for="manualContent" class="form-label">Manually Enter Paper Questions</label>
-                        <textarea class="form-control" id="manualContent" name="manualContent" rows="10" 
-                                  placeholder="Type or paste the exam paper questions directly in structured lines. Example:&#10;&#10;Q1. Answer any one:&#10;1. Explain stack operations with diagram (5 Marks)&#10;OR 2. Explain circular queue implementation (5 Marks)&#10;&#10;Q2. Answer all questions:&#10;3. What is a binary search tree? (5 Marks)&#10;4. Define time complexity (2 Marks)"></textarea>
-                        <div class="invalid-feedback">Please enter the paper questions.</div>
-                        <small class="text-muted mt-2 d-block">
-                            <i class="bi bi-info-circle me-1 text-primary"></i> 
-                            Use group labels like <strong>Q1.</strong> or <strong>Q2.</strong> to group sections, and suffix lines with <strong>(5 Marks)</strong> or similar to define question score weights.
-                        </small>
+                    <!-- Row 2: Semester, Exam Duration, Total Marks -->
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            <select class="form-select fw-medium" id="semester" name="semester" required>
+                                <option value="" selected disabled>Select Semester</option>
+                                <option value="1">Semester 1</option>
+                                <option value="2">Semester 2</option>
+                                <option value="3">Semester 3</option>
+                                <option value="4">Semester 4</option>
+                                <option value="5">Semester 5</option>
+                                <option value="6">Semester 6</option>
+                                <option value="7">Semester 7</option>
+                                <option value="8">Semester 8</option>
+                            </select>
+                            <label for="semester">Semester</label>
+                            <div class="invalid-feedback">Please select an academic semester.</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            <input type="number" class="form-control fw-medium" id="duration" name="duration" placeholder=" " min="1" max="300" required>
+                            <label for="duration">Exam Duration (minutes)</label>
+                            <div class="invalid-feedback">Please enter valid exam duration (1-300 minutes).</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            <input type="number" class="form-control fw-medium" id="totalMarks" name="totalMarks" placeholder=" " min="1" max="500" required>
+                            <label for="totalMarks">Total Marks</label>
+                            <div class="invalid-feedback">Please enter valid total marks (1-500).</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
-                <div class="mt-5 d-flex gap-3 justify-content-end">
-                    <button type="reset" class="btn btn-clear" id="reset-btn">Clear Fields</button>
-                    <button type="submit" class="btn btn-submit d-flex align-items-center gap-2">
+                <!-- Section 2: Paper Source & Content -->
+                <h4 class="h4 mb-3" style="color: var(--text-primary) !important;">Paper Content</h4>
+                
+                <!-- Segmented Tab Picker -->
+                <div class="segmented-control w-100 d-flex mb-4">
+                    <input type="radio" class="btn-check" name="paperSource" id="sourceFile" autocomplete="off" checked>
+                    <label class="btn btn-toggle-custom w-50 py-2 border-0" for="sourceFile">
+                        <i class="bi bi-file-earmark-pdf me-2"></i> Upload Document
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="paperSource" id="sourceManual" autocomplete="off">
+                    <label class="btn btn-toggle-custom w-50 py-2 border-0" for="sourceManual">
+                        <i class="bi bi-pencil-square me-2"></i> Enter Manually
+                    </label>
+                </div>
+
+                <!-- File Upload Option Panel -->
+                <div class="col-12 mb-4" id="panel-file-upload">
+                    <div class="upload-dropzone" id="dropzone">
+                        <!-- Real hidden file input layered on top -->
+                        <input class="real-file-input" type="file" id="paperFile" name="file" accept=".pdf,.doc,.docx" required>
+                        
+                        <div class="text-primary mb-3">
+                            <i class="bi bi-cloud-arrow-up text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h6 class="fw-semibold mb-1" id="file-name-label" style="color: var(--text-primary) !important;">Drag & drop or click to browse</h6>
+                        <p class="text-muted small mb-0">Accepted: PDF, DOCX (Max 5MB)</p>
+                        <div class="invalid-feedback mt-2">Please upload a valid paper document.</div>
+                    </div>
+                </div>
+
+                <!-- Manual Entry Option Panel -->
+                <div class="col-12 mb-4 d-none" id="panel-manual-entry">
+                    <div class="form-floating">
+                        <textarea class="form-control fw-medium" id="manualContent" name="manualContent" style="height: 240px;" placeholder=" "></textarea>
+                        <label for="manualContent">Manually Enter Paper Questions</label>
+                        <div class="invalid-feedback">Please enter the paper questions.</div>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        <i class="bi bi-info-circle me-1 text-primary"></i> 
+                        Use section groups like <strong>Q1.</strong> or <strong>Q2.</strong> and marks like <strong>(5 Marks)</strong> to define question parameters.
+                    </small>
+                </div>
+
+                <!-- Bottom Actions -->
+                <div class="mt-4 d-flex gap-3 justify-content-end">
+                    <button type="reset" class="btn btn-outline-secondary px-4 btn-action-saas" id="reset-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 btn-action-saas d-flex align-items-center gap-2">
                         <i class="bi bi-cloud-upload"></i>
                         <span>Start Processing</span>
                     </button>
@@ -330,9 +413,9 @@
                 fileInput.removeAttribute('required');
                 
                 fileInput.value = '';
-                fileNameLabel.textContent = 'Drag & Drop file here or click to browse';
-                dropzone.style.borderColor = '#cbd5e1';
-                dropzone.style.background = '#f8fafc';
+                fileNameLabel.textContent = 'Drag & drop or click to browse';
+                dropzone.style.borderColor = 'var(--border-color)';
+                dropzone.style.background = 'var(--card-bg)';
             }
         }
 
@@ -341,9 +424,9 @@
 
         fileInput.addEventListener('change', (e) => {
             if (fileInput.files.length > 0) {
-                fileNameLabel.textContent = `Selected File: ${fileInput.files[0].name}`;
+                fileNameLabel.textContent = `Selected: ${fileInput.files[0].name}`;
                 dropzone.style.borderColor = 'var(--primary)';
-                dropzone.style.background = '#f5f3ff';
+                dropzone.style.background = 'var(--bg-canvas)';
             }
         });
 

@@ -8,6 +8,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.Column;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.CascadeType;
 
 import jakarta.persistence.UniqueConstraint;
 
@@ -76,4 +79,10 @@ public class Answer {
     public void setFeedback(String feedback) { this.feedback = feedback; }
     public java.time.LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(java.time.LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    @OneToOne(mappedBy = "answer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private CanvasDataEntity canvasData;
+
+    public CanvasDataEntity getCanvasData() { return canvasData; }
+    public void setCanvasData(CanvasDataEntity canvasData) { this.canvasData = canvasData; }
 }

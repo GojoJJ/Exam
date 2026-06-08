@@ -75,25 +75,57 @@ public class PaperParsingService {
         Pattern groupPattern = Pattern.compile("(?i)^(Q|Question)\\s*[\\.\\-]?\\s*(\\d+)");
         // 2. Optional: OR at start
         Pattern orPattern = Pattern.compile("(?i)^(OR)\\b");
-        // 3. Marks: (4), [4], 4 Marks, 4M, or just a number at the end
-        Pattern marksPattern = Pattern.compile("(.*?)\\s*[\\(\\[]?\\s*(\\d+)\\s*(Marks|Mark|M)?\\s*[\\)\\]]?$");
-        // 4. Starts with a number (e.g. 1. Question text...)
-        Pattern startNumberPattern = Pattern.compile("^\\d+\\.\\s+.*");
 
         String[] ignoreKeywords = {
-            "instructions", "attempt all questions", "figures on the right", "draw the figures",
-            "seatno", "enrolmentno", "university", "subject name", "duration", "total marks"
+            "instructions", "attempt all", "attempt any", "attempt questions", "compulsory",
+            "figures on the right", "figures to the right", "draw the figures",
+            "seat no", "seatno", "enrolment", "enrollment", "roll no", "rollno",
+            "university", "subject name", "subject code", "course code", "duration", "total marks",
+            "maximum marks", "date:", "date/", "draw diagrams", "draw graphs",
+            "wherever necessary", "where necessary", "wherever required", "where required"
         };
         
         boolean extractionStarted = false;
+        Question activeQuestion = null;
+        boolean nextQuestionIsOptional = false;
 
         for (String line : lines) {
             String trimmed = line.trim();
             if (trimmed.isEmpty() || trimmed.contains("******")) continue;
 
-            // Check for group header
+            // Skip lines that match page numbers/footers/headers
+            if (trimmed.matches("(?i)^(?:Page\\s*\\d+\\s*of\\s*\\d+|\\d+\\s*of\\s*\\d+|Page\\s*\\d+|\\d+\\s*\\|\\s*Page|\\-\\s*\\d+\\s*\\-)$")) {
+                continue;
+            }
+
+            // Normalize spacing
+            trimmed = trimmed.replaceAll("[ \\t\\x0B\\f\\r]+", " ");
+
+            // Check if the line is exactly "OR" (case-insensitive)
+            if (trimmed.equalsIgnoreCase("OR")) {
+                nextQuestionIsOptional = true;
+                continue;
+            }
+
+            // Check if it is a group header
             Matcher groupMatcher = groupPattern.matcher(trimmed);
+            boolean isGroupHeader = false;
             if (groupMatcher.find()) {
+                if (!isNewQuestionStart(trimmed)) {
+                    isGroupHeader = true;
+                }
+            }
+
+            if (isGroupHeader) {
+                // Finalize active question
+                if (activeQuestion != null) {
+                    finalizeQuestion(activeQuestion);
+                    if (isValidQuestion(activeQuestion)) {
+                        questions.add(activeQuestion);
+                    }
+                    activeQuestion = null;
+                }
+                
                 groupIndex = Integer.parseInt(groupMatcher.group(2));
                 currentGroup = "Q" + groupIndex;
                 extractionStarted = true;
@@ -102,7 +134,7 @@ public class PaperParsingService {
 
             // Rule 1: Ignore everything before the first valid group or valid question
             if (!extractionStarted) {
-                if (startNumberPattern.matcher(trimmed).matches() || marksPattern.matcher(trimmed).matches()) {
+                if (isNewQuestionStart(trimmed)) {
                     extractionStarted = true;
                 } else {
                     continue;
@@ -120,39 +152,65 @@ public class PaperParsingService {
             }
             if (skipLine) continue;
 
-            // Rule 3: Only extract valid question lines (starts with number, ends with marks, or is OR)
-            if (!startNumberPattern.matcher(trimmed).matches() && 
-                !marksPattern.matcher(trimmed).matches() && 
-                !orPattern.matcher(trimmed).find()) {
-                continue;
+            // Check if it starts a new question
+            if (isNewQuestionStart(trimmed)) {
+                // Finalize previous question
+                if (activeQuestion != null) {
+                    finalizeQuestion(activeQuestion);
+                    if (isValidQuestion(activeQuestion)) {
+                        questions.add(activeQuestion);
+                    }
+                }
+
+                // Start new question
+                activeQuestion = new Question();
+                activeQuestion.setPaper(paper);
+                activeQuestion.setQuestionGroup(currentGroup);
+                
+                String questionText = trimmed;
+                boolean isOptional = nextQuestionIsOptional;
+                nextQuestionIsOptional = false;
+
+                // Check for OR
+                if (orPattern.matcher(trimmed).find()) {
+                    isOptional = true;
+                    questionText = trimmed.replaceAll("(?i)^OR\\s*", "");
+                }
+
+                activeQuestion.setText(questionText);
+                activeQuestion.setOptional(isOptional);
+            } else {
+                // Continuation line
+                if (activeQuestion != null) {
+                    String currentText = activeQuestion.getText();
+                    activeQuestion.setText(currentText + " " + trimmed);
+                }
             }
+        }
 
-            String questionText = trimmed;
-            boolean isOptional = false;
-
-            // Check for OR
-            if (orPattern.matcher(trimmed).find()) {
-                isOptional = true;
-                questionText = trimmed.replaceAll("(?i)^OR\\s*", "");
+        // Finalize last question
+        if (activeQuestion != null) {
+            finalizeQuestion(activeQuestion);
+            if (isValidQuestion(activeQuestion)) {
+                questions.add(activeQuestion);
             }
+        }
 
-            // Extract marks
-            double marks = 1.0; 
-            Matcher marksMatcher = marksPattern.matcher(questionText);
-            if (marksMatcher.matches()) {
-                questionText = marksMatcher.group(1).trim();
-                marks = Double.parseDouble(marksMatcher.group(2));
-            }
-
-            // Basic filter: must have some length and not be just a number or short label
-            if (questionText.length() > 3 && !questionText.matches("^\\d+$")) {
-                Question q = new Question();
-                q.setPaper(paper);
-                q.setText(questionText);
-                q.setMarks(marks);
-                q.setQuestionGroup(currentGroup);
-                q.setOptional(isOptional);
-                questions.add(q);
+        // Post-process questions to automatically pair OR options
+        int pairCounter = 1;
+        for (int i = 0; i < questions.size(); i++) {
+            Question q = questions.get(i);
+            if (q.isOptional()) {
+                if (i > 0) {
+                    Question prev = questions.get(i - 1);
+                    String pairId = prev.getPairId();
+                    if (pairId == null || pairId.isEmpty()) {
+                        pairId = "P" + pairCounter++;
+                        prev.setOptional(true);
+                        prev.setPairId(pairId);
+                    }
+                    q.setPairId(pairId);
+                }
             }
         }
 
@@ -165,6 +223,121 @@ public class PaperParsingService {
         }
 
         return questions;
+    }
+
+    private boolean isNewQuestionStart(String trimmed) {
+        if (trimmed.isEmpty()) return false;
+
+        // 1. Starts with OR (case-insensitive, word boundary)
+        Pattern orPattern = Pattern.compile("(?i)^(OR)\\b");
+        if (orPattern.matcher(trimmed).find()) {
+            if (trimmed.startsWith("{") || trimmed.startsWith("(")) {
+                return false;
+            }
+            return true;
+        }
+
+        // 2. Starts with a Question Number Pattern (e.g. 1. , Q1. , Q.1. )
+        Pattern questionNumPattern = Pattern.compile("^(?:(?:Q|Question)\\s*[\\.\\-]?\\s*)?\\d+[\\.\\)]\\s+.*", Pattern.CASE_INSENSITIVE);
+        if (!questionNumPattern.matcher(trimmed).matches()) {
+            return false;
+        }
+
+        // Check for False Question Creation rules (overrides):
+        if (trimmed.startsWith("{") || trimmed.startsWith("(")) {
+            return false;
+        }
+
+        String contentAfterNum = trimmed.replaceAll("^(?:(?:Q|Question)\\s*[\\.\\-]?\\s*)?\\d+[\\.\\)]\\s*", "").trim();
+        if (contentAfterNum.isEmpty()) {
+            return false;
+        }
+
+        if (contentAfterNum.startsWith("{") || contentAfterNum.startsWith("(")) {
+            return false;
+        }
+
+        // Starts with mathematical expression operator
+        if (contentAfterNum.matches("^[+\\-*/=<>≤≥≠≈±\\u00d7\\u00f7\\u2212\\u2260\\u2264\\u2265].*")) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void finalizeQuestion(Question q) {
+        if (q == null) return;
+        String text = q.getText();
+        if (text == null) return;
+        text = text.trim();
+
+        // Remove trailing page numbers/footers at the end of the text
+        // e.g. "1|Page", "Page 1", "Page 1 of 5", "- 1 -", etc.
+        text = text.replaceAll("(?i)\\b(?:Page\\s*\\d+\\s*of\\s*\\d+|\\d+\\s*of\\s*\\d+|Page\\s*\\d+|\\d+\\s*\\|\\s*Page)\\b\\s*$", "").trim();
+        text = text.replaceAll("(?i)\\bPage\\b\\s*$", "").trim(); // in case "Page" gets separated or standalone
+        text = text.replaceAll("\\-\\s*\\d+\\s*\\-\\s*$", "").trim(); // - 1 - style
+
+        // Remove trailing punctuation (like ., ?, !, :, ;, -) at the very end of the string
+        // but preserve closing brackets/parentheses if there are any.
+        String cleanText = text.replaceAll("[\\.\\?\\!\\:\\;\\-\\s]+$", "").trim();
+
+        // 1. Enclosed marks: e.g. [3], (3 Marks), [3 Mark]
+        java.util.regex.Pattern patternEnclosed = java.util.regex.Pattern.compile("(.*?)\\s*[\\(\\[]\\s*(?:Marks|Mark|M)?\\s*(\\d+)\\s*(?:Marks|Mark|M)?\\s*[\\)\\]]$", java.util.regex.Pattern.CASE_INSENSITIVE);
+        
+        // 2. Enclosed label first: e.g. [Marks: 3], (Mark 3)
+        java.util.regex.Pattern patternEnclosedLabelFirst = java.util.regex.Pattern.compile("(.*?)\\s*[\\(\\[]\\s*(?:Marks|Mark|M)\\s*[\\:\\-]?\\s*(\\d+)\\s*[\\)\\]]$", java.util.regex.Pattern.CASE_INSENSITIVE);
+        
+        // 3. Standalone trailing marks (requires at least one whitespace before the number/label)
+        // e.g. "What is X? 3" or "What is X? 3 Marks" or "What is X? Marks 3"
+        java.util.regex.Pattern patternStandalone = java.util.regex.Pattern.compile("(.*?)\\s+(?:(?:Marks|Mark|M)\\s*[\\:\\-]?\\s*(\\d+)|(\\d+)\\s*(?:Marks|Mark|M)?)$", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+        java.util.regex.Matcher m;
+
+        m = patternEnclosed.matcher(cleanText);
+        if (m.matches()) {
+            double marks = Double.parseDouble(m.group(2));
+            if (marks > 0 && marks <= 100) {
+                q.setText(m.group(1).trim());
+                q.setMarks(marks);
+                return;
+            }
+        }
+
+        m = patternEnclosedLabelFirst.matcher(cleanText);
+        if (m.matches()) {
+            double marks = Double.parseDouble(m.group(2));
+            if (marks > 0 && marks <= 100) {
+                q.setText(m.group(1).trim());
+                q.setMarks(marks);
+                return;
+            }
+        }
+
+        m = patternStandalone.matcher(cleanText);
+        if (m.matches()) {
+            String numStr = m.group(2) != null ? m.group(2) : m.group(3);
+            if (numStr != null) {
+                double marks = Double.parseDouble(numStr);
+                if (marks > 0 && marks <= 100) {
+                    q.setText(m.group(1).trim());
+                    q.setMarks(marks);
+                    return;
+                }
+            }
+        }
+
+        // Default fallback if no valid marks pattern matched
+        if (q.getMarks() == null) {
+            q.setMarks(1.0);
+        }
+    }
+
+    private boolean isValidQuestion(Question q) {
+        if (q == null) return false;
+        String text = q.getText();
+        if (text == null) return false;
+        text = text.trim();
+        return text.length() > 3 && !text.matches("^\\d+$");
     }
 
 }

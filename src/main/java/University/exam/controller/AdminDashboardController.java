@@ -1,11 +1,13 @@
 package University.exam.controller;
 
+import University.exam.Entity.Admin;
 import University.exam.Entity.Paper;
 import University.exam.Entity.Question;
 import University.exam.Entity.Submission;
 import University.exam.Entity.Answer;
 import University.exam.Entity.Result;
 import University.exam.Entity.Student;
+import University.exam.repository.AdminRepository;
 import University.exam.repository.PaperRepository;
 import University.exam.repository.SubmissionRepository;
 import University.exam.repository.AnswerRepository;
@@ -14,23 +16,11 @@ import University.exam.repository.QuestionRepository;
 import University.exam.repository.StudentRepository;
 import University.exam.service.PaperParsingService;
 import jakarta.servlet.http.HttpSession;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import com.lowagie.text.Document;
-import com.lowagie.text.DocumentException;
-import com.lowagie.text.Element;
-import com.lowagie.text.Font;
-import com.lowagie.text.FontFactory;
-import com.lowagie.text.Paragraph;
-import com.lowagie.text.Phrase;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,30 +54,225 @@ public class AdminDashboardController {
     @Autowired
     private StudentRepository studentRepository;
 
-    // Helper method to simulate a logged-in admin
-    private void addAdminAttributes(Model model) {
-        model.addAttribute("adminName", "Super Admin");
+    @Autowired
+    private AdminRepository adminRepository;
+
+    @Autowired
+    private University.exam.repository.ExamRepository examRepository;
+
+    // Helper method to simulate/retrieve a logged-in admin
+    private void addAdminAttributes(HttpSession session, Model model) {
+        String adminName = (String) session.getAttribute("loggedInAdmin");
+        model.addAttribute("adminName", adminName != null ? adminName : "Super Admin");
         model.addAttribute("logoUrl", "/images/logo.png");
     }
 
+    private Admin getLoggedInAdmin(HttpSession session) {
+        if (session == null) {
+            return null;
+        }
+        String adminName = (String) session.getAttribute("loggedInAdmin");
+        if (adminName == null) {
+            return null;
+        }
+        List<Admin> admins = adminRepository.findByAdminNameIgnoreCase(adminName.trim());
+        if (admins != null && !admins.isEmpty()) {
+            return admins.get(0);
+        }
+        return null;
+    }
+
     @GetMapping("/dashboard")
-    public String dashboard(Model model) {
-        addAdminAttributes(model);
+    public String dashboard(HttpSession session, Model model) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+        addAdminAttributes(session, model);
         
-        long totalPapers = paperRepository.count();
-        long totalSubmissions = submissionRepository.count();
-        long pendingEvaluations = submissionRepository.countByStatus("Pending");
+        // Auto-terminate active exams whose duration has expired on page load
+        List<Paper> papers = paperRepository.findByAdminId(admin.getId());
+        LocalDateTime now = LocalDateTime.now();
+        boolean paperChanged = false;
+        for (Paper paper : papers) {
+            if ("ACTIVE".equals(paper.getExamStatus()) && paper.getActivationTime() != null && paper.getExamDuration() != null) {
+                LocalDateTime endTime = paper.getActivationTime().plusMinutes(paper.getExamDuration());
+                if (now.isAfter(endTime)) {
+                    paper.setExamStatus("ENDED");
+                    paperRepository.save(paper);
+                    paperChanged = true;
+                    
+                    // Auto-terminate all ONGOING submissions for this paper!
+                    terminateOngoingSubmissionsForPaper(paper);
+                }
+            }
+        }
+        if (paperChanged) {
+            papers = paperRepository.findByAdminId(admin.getId());
+        }
+        // Sort by id descending to show latest first
+        papers.sort((p1, p2) -> p2.getId().compareTo(p1.getId()));
+        
+        long totalPapers = paperRepository.countByAdminId(admin.getId());
+        long totalSubmissions = submissionRepository.countByPaperAdminId(admin.getId());
+        long pendingEvaluations = submissionRepository.countByStatusAndPaperAdminId("Pending", admin.getId());
+        
+        List<University.exam.Entity.Exam> exams = examRepository.findAll();
+        exams.sort((e1, e2) -> e2.getId().compareTo(e1.getId()));
+
+        // Calculate dynamic dashboard stats per paper (eligible students and submissions attempts)
+        List<Student> allStudents = studentRepository.findAll();
+        List<Submission> allSubmissions = submissionRepository.findByPaperAdminId(admin.getId());
+
+        Map<Long, Long> eligibleStudentsMap = new HashMap<>();
+        Map<Long, Long> attemptsMap = new HashMap<>();
+
+        for (Paper p : papers) {
+            String paperSem = p.getSemester();
+            
+            // Count eligible students matching this paper's semester
+            long eligibleCount = 0;
+            for (Student student : allStudents) {
+                if (Student.matchesSemester(student.getSemester(), paperSem)) {
+                    eligibleCount++;
+                }
+            }
+            eligibleStudentsMap.put(p.getId(), eligibleCount);
+
+            // Count attempts (submissions) for this paper
+            long attemptsCount = 0;
+            for (Submission sub : allSubmissions) {
+                if (sub.getPaper() != null && sub.getPaper().getId().equals(p.getId())) {
+                    attemptsCount++;
+                }
+            }
+            attemptsMap.put(p.getId(), attemptsCount);
+        }
+
+        // Additional stats for the enhanced Result Management module
+        long totalStudents = studentRepository.count();
+        long passedCount = resultRepository.countByAdminIdAndResultStatus(admin.getId(), "PASSED");
+        long failedCount = resultRepository.countByAdminIdAndResultStatus(admin.getId(), "FAILED");
+        long terminatedCount = resultRepository.countByAdminIdAndResultStatus(admin.getId(), "TERMINATED");
+        long disqualifiedCount = resultRepository.countByAdminIdAndResultStatus(admin.getId(), "DISQUALIFIED");
+        long absentCount = resultRepository.countByAdminIdAndResultStatus(admin.getId(), "ABSENT");
         
         model.addAttribute("totalPapers", totalPapers);
         model.addAttribute("totalSubmissions", totalSubmissions);
         model.addAttribute("pendingEvaluations", pendingEvaluations);
+        model.addAttribute("papers", papers);
+        model.addAttribute("exams", exams);
+        model.addAttribute("eligibleStudentsMap", eligibleStudentsMap);
+        model.addAttribute("attemptsMap", attemptsMap);
+        model.addAttribute("submissionsList", allSubmissions);
+
+        model.addAttribute("totalStudentsCount", totalStudents);
+        model.addAttribute("passedCount", passedCount);
+        model.addAttribute("failedCount", failedCount);
+        model.addAttribute("terminatedCount", terminatedCount);
+        model.addAttribute("disqualifiedCount", disqualifiedCount);
+        model.addAttribute("absentCount", absentCount);
         
         return "admin/dashboard";
     }
 
+    @GetMapping("/paper/{id}/activate")
+    public String activatePaper(@PathVariable("id") Long id, HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+        paperRepository.findById(id).ifPresent(paper -> {
+            if (paper.getAdmin() != null && paper.getAdmin().getId().equals(admin.getId())) {
+                LocalDateTime now = LocalDateTime.now();
+                paper.setExamStatus("ACTIVE");
+                paper.setActivationTime(now);
+                paper.setActivatedTime(now);
+                if (paper.getPublishedTime() == null) {
+                    paper.setPublishedTime(now);
+                }
+                paperRepository.save(paper);
+            }
+        });
+        return "redirect:/admin/dashboard";
+    }
+
+    @GetMapping("/exam/{id}/activate")
+    public String activateExam(@PathVariable("id") Long id, HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+        examRepository.findById(id).ifPresent(exam -> {
+            LocalDateTime now = LocalDateTime.now();
+            exam.setExamStatus("ACTIVE");
+            exam.setActivationTime(now);
+            exam.setActivatedTime(now);
+            if (exam.getPublishedTime() == null) {
+                exam.setPublishedTime(now);
+            }
+            examRepository.save(exam);
+        });
+        return "redirect:/admin/dashboard";
+    }
+
+    @GetMapping("/paper/{id}/end")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public String endPaper(@PathVariable("id") Long id, HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "unauthorized";
+        }
+        Optional<Paper> paperOpt = paperRepository.findById(id);
+        if (paperOpt.isPresent()) {
+            Paper paper = paperOpt.get();
+            if (paper.getAdmin() != null && paper.getAdmin().getId().equals(admin.getId())) {
+                paper.setExamStatus("ENDED");
+                paperRepository.save(paper);
+                terminateOngoingSubmissionsForPaper(paper);
+                return "success";
+            }
+        }
+        return "failure";
+    }
+
+    @GetMapping("/paper/{id}/end-dashboard")
+    public String endPaperDashboard(@PathVariable("id") Long id, HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+        paperRepository.findById(id).ifPresent(paper -> {
+            if (paper.getAdmin() != null && paper.getAdmin().getId().equals(admin.getId())) {
+                paper.setExamStatus("ENDED");
+                paperRepository.save(paper);
+                terminateOngoingSubmissionsForPaper(paper);
+            }
+        });
+        return "redirect:/admin/dashboard";
+    }
+
+    @GetMapping("/exam/{id}/end")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public String endExam(@PathVariable("id") Long id, HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "unauthorized";
+        }
+        examRepository.findById(id).ifPresent(exam -> {
+            exam.setExamStatus("ENDED");
+            examRepository.save(exam);
+        });
+        return "success";
+    }
+
     @GetMapping("/upload-paper")
-    public String uploadPaper(Model model) {
-        addAdminAttributes(model);
+    public String uploadPaper(HttpSession session, Model model) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+        addAdminAttributes(session, model);
         return "admin/upload_paper";
     }
 
@@ -96,10 +281,15 @@ public class AdminDashboardController {
             @RequestParam(value = "course", required = false) String course,
             @RequestParam(value = "semester", required = false) String semester,
             @RequestParam(value = "division", required = false) String division,
+            HttpSession session,
             Model model) {
-        addAdminAttributes(model);
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+        addAdminAttributes(session, model);
         
-        List<Submission> allSubmissions = submissionRepository.findAll();
+        List<Submission> allSubmissions = submissionRepository.findByPaperAdminId(admin.getId());
         List<Submission> filteredSubmissions = new ArrayList<>();
         
         for (Submission sub : allSubmissions) {
@@ -135,12 +325,17 @@ public class AdminDashboardController {
     }
 
     @GetMapping("/evaluate")
-    public String evaluatePaper(@RequestParam(value = "id", required = false) Long submissionId, Model model) {
-        addAdminAttributes(model);
+    public String evaluatePaper(@RequestParam(value = "id", required = false) Long submissionId, HttpSession session, Model model) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+        addAdminAttributes(session, model);
         if (submissionId != null) {
             Submission submission = submissionRepository.findById(submissionId).orElse(null);
-            model.addAttribute("submission", submission);
-            if (submission != null) {
+            if (submission != null && submission.getPaper() != null && submission.getPaper().getAdmin() != null
+                    && submission.getPaper().getAdmin().getId().equals(admin.getId())) {
+                model.addAttribute("submission", submission);
                 List<Answer> answers = answerRepository.findBySubmissionId(submissionId);
                 
                 // Sort answers by Question ID in ascending order to prevent shuffling
@@ -182,6 +377,8 @@ public class AdminDashboardController {
                 
                 model.addAttribute("groupedAnswers", sortedGroupedAnswers);
                 model.addAttribute("answers", answers);
+            } else {
+                return "redirect:/admin/submissions?error=unauthorized";
             }
         }
         return "admin/evaluate_paper";
@@ -198,6 +395,11 @@ public class AdminDashboardController {
             @RequestParam("totalMarks") Double totalMarks,
             HttpSession session) {
 
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) {
+            return "redirect:/admin-login";
+        }
+
         try {
             Paper paper = new Paper();
             paper.setSubject(subject);  
@@ -206,6 +408,7 @@ public class AdminDashboardController {
             paper.setUploadedAt(LocalDateTime.now());
             paper.setExamDuration(duration);
             paper.setTotalMarks(totalMarks);
+            paper.setAdmin(admin);
 
             boolean isManual = (manualContent != null && !manualContent.trim().isEmpty());
 
@@ -275,10 +478,16 @@ public class AdminDashboardController {
 
     @SuppressWarnings("unchecked")
     @GetMapping("/paper/{id}/preview")
-    public String previewQuestions(@PathVariable Long id, Model model, HttpSession session) {
-        addAdminAttributes(model);
+    public String previewQuestions(@PathVariable("id") Long id, HttpSession session, Model model) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) return "redirect:/admin-login";
+
         Paper paper = paperRepository.findById(id).orElse(null);
-        if (paper == null) return "redirect:/admin/dashboard";
+        if (paper == null || paper.getAdmin() == null || !paper.getAdmin().getId().equals(admin.getId())) {
+            return "redirect:/admin/dashboard?error=unauthorized";
+        }
+
+        addAdminAttributes(session, model);
 
         List<Question> questions = (List<Question>) session.getAttribute("previewQuestions_" + id);
         
@@ -295,50 +504,69 @@ public class AdminDashboardController {
     }
 
     @GetMapping("/paper/{id}/confirm-questions")
-    public String confirmQuestionsGetFallback(@PathVariable Long id) {
+    public String confirmQuestionsGetFallback(@PathVariable("id") Long id, HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) return "redirect:/admin-login";
         return "redirect:/admin/paper/" + id + "/preview";
     }
 
     @PostMapping("/paper/{id}/confirm-questions")
-    public String confirmQuestions(@PathVariable Long id, 
+    public String confirmQuestions(@PathVariable("id") Long id, 
                                  @RequestParam Map<String, String> formData,
                                  HttpSession session) {
-        
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) return "redirect:/admin-login";
+
         Paper paper = paperRepository.findById(id).orElse(null);
-        if (paper != null) {
-            List<Question> finalQuestions = new ArrayList<>();
-            int index = 0;
-            while (formData.containsKey("q_" + index + "_text")) {
-                Question q = new Question();
-                q.setPaper(paper);
-                q.setText(formData.get("q_" + index + "_text"));
-                q.setMarks(Double.parseDouble(formData.getOrDefault("q_" + index + "_marks", "1.0")));
-                q.setQuestionGroup(formData.getOrDefault("q_" + index + "_group", "Q1"));
-                q.setOptional(formData.containsKey("q_" + index + "_optional"));
-                q.setPairId(formData.get("q_" + index + "_pair_id"));
-                finalQuestions.add(q);
-                index++;
-            }
-            
-            if (!finalQuestions.isEmpty()) {
-                questionRepository.saveAll(finalQuestions);
-            }
-            session.removeAttribute("previewQuestions_" + id);
+        if (paper == null || paper.getAdmin() == null || !paper.getAdmin().getId().equals(admin.getId())) {
+            return "redirect:/admin/dashboard?error=unauthorized";
         }
+        
+        List<Question> finalQuestions = new ArrayList<>();
+        int index = 0;
+        while (formData.containsKey("q_" + index + "_text")) {
+            Question q = new Question();
+            q.setPaper(paper);
+            q.setText(formData.get("q_" + index + "_text"));
+            q.setMarks(Double.parseDouble(formData.getOrDefault("q_" + index + "_marks", "1.0")));
+            q.setQuestionGroup(formData.getOrDefault("q_" + index + "_group", "Q1"));
+            q.setOptional(formData.containsKey("q_" + index + "_optional"));
+            q.setPairId(formData.get("q_" + index + "_pair_id"));
+            finalQuestions.add(q);
+            index++;
+        }
+        
+        if (!finalQuestions.isEmpty()) {
+            questionRepository.saveAll(finalQuestions);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        paper.setExamStatus("PUBLISHED");
+        paper.setPublishedTime(now);
+        paper.setActivatedTime(null);
+        paper.setActivationTime(null);
+        paperRepository.save(paper);
+        session.removeAttribute("previewQuestions_" + id);
+
         return "redirect:/admin/dashboard";
     }
 
     @GetMapping("/submit-evaluation")
-    public String submitEvaluationGetFallback() {
+    public String submitEvaluationGetFallback(HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) return "redirect:/admin-login";
         return "redirect:/admin/submissions";
     }
 
     @PostMapping("/submit-evaluation")
     public String handleSubmitEvaluation(@RequestParam("submissionId") Long submissionId, 
-                                       @RequestParam Map<String, String> formData) {
+                                       @RequestParam Map<String, String> formData,
+                                       HttpSession session) {
+        Admin admin = getLoggedInAdmin(session);
+        if (admin == null) return "redirect:/admin-login";
         
         Submission submission = submissionRepository.findById(submissionId).orElse(null);
-        if (submission != null) {
+        if (submission != null && submission.getPaper() != null && submission.getPaper().getAdmin() != null
+                && submission.getPaper().getAdmin().getId().equals(admin.getId())) {
             List<Answer> answers = answerRepository.findBySubmissionId(submissionId);
             double totalObtained = 0;
             double totalMax = 0;
@@ -375,8 +603,8 @@ public class AdminDashboardController {
                     .orElse(new Result());
             
             result.setSubmission(submission);
-            result.setTotalMarks(totalObtained);
-            result.setMaxTotalMarks(paperMaxMarks);
+            result.setObtainedMarks(totalObtained);
+            result.setTotalMarks(paperMaxMarks);
             result.setEvaluatedAt(LocalDateTime.now());
             
             // Set the new required fields
@@ -387,331 +615,98 @@ public class AdminDashboardController {
                 result.setDivision(submission.getStudent().getDivision());
             }
             if (submission.getPaper() != null) {
-                result.setSubject(submission.getPaper().getSubject());
+                result.setSubjectName(submission.getPaper().getSubject());
+                // Attempt to retrieve an exam name, fallback to course or subject
+                String examName = submission.getPaper().getCourse() != null ? submission.getPaper().getCourse() : "Mid/End Term Exam";
+                result.setExamName(examName);
+                
                 // Fallback for semester if not set in student
                 if (result.getSemester() == null || result.getSemester().isEmpty()) {
                     result.setSemester(submission.getPaper().getSemester());
                 }
             }
-            result.setObtainedMarks(totalObtained);
             
             // Pass/Fail status: Pass if obtained marks >= 40% of paper max marks
             double passThreshold = paperMaxMarks * 0.40;
             if (totalObtained >= passThreshold) { 
-                result.setStatus("Pass");
+                result.setResultStatus("PASS");
             } else {
-                result.setStatus("Fail");
+                result.setResultStatus("FAIL");
             }
             
             resultRepository.save(result);
 
             submission.setStatus("Evaluated");
             submissionRepository.save(submission);
+        } else {
+            return "redirect:/admin/submissions?error=unauthorized";
         }
 
         return "redirect:/admin/submissions";
     }
 
-    @GetMapping("/results")
-    public String viewResults(
-            @RequestParam(value = "division", required = false) String division,
-            @RequestParam(value = "semester", required = false) String semester,
-            @RequestParam(value = "subject", required = false) String subject,
-            Model model) {
-        addAdminAttributes(model);
-        if (division == null) division = "";
-        if (semester == null) semester = "";
-        if (subject == null) subject = "";
-        
-        List<Result> allResults = resultRepository.findAll();
-        List<Result> filteredResults = new ArrayList<>();
-        
-        Result topper = null;
-        double maxObtained = -1;
-        
-        for (Result r : allResults) {
-            boolean matches = true;
-            
-            if (division != null && !division.trim().isEmpty() && !division.equalsIgnoreCase("All")) {
-                if (r.getDivision() == null || !division.equalsIgnoreCase(r.getDivision())) {
-                    matches = false;
-                }
-            }
-            if (semester != null && !semester.trim().isEmpty() && !semester.equalsIgnoreCase("All")) {
-                if (r.getSemester() == null || !semester.equalsIgnoreCase(r.getSemester())) {
-                    matches = false;
-                }
-            }
-            if (subject != null && !subject.trim().isEmpty() && !subject.equalsIgnoreCase("All")) {
-                if (r.getSubject() == null || !subject.equalsIgnoreCase(r.getSubject())) {
-                    matches = false;
-                }
-            }
-            
-            if (matches) {
-                filteredResults.add(r);
-                if (r.getObtainedMarks() != null && r.getObtainedMarks() > maxObtained) {
-                    maxObtained = r.getObtainedMarks();
-                    topper = r;
-                }
-            }
-        }
-        
-        // Find distinct subjects, semesters dynamically from all entered papers!
-        Set<String> distinctSubjects = new TreeSet<>();
-        Set<String> distinctSemesters = new TreeSet<>();
-        Set<String> distinctDivisions = new TreeSet<>();
-        
-        List<Paper> allPapers = paperRepository.findAll();
-        for (Paper p : allPapers) {
-            if (p.getSubject() != null && !p.getSubject().trim().isEmpty()) {
-                distinctSubjects.add(p.getSubject().trim());
-            }
-            if (p.getSemester() != null && !p.getSemester().trim().isEmpty()) {
-                distinctSemesters.add(p.getSemester().trim());
-            }
-        }
-        
-        // Find distinct divisions dynamically from all students!
-        List<Student> allStudents = studentRepository.findAll();
-        for (Student s : allStudents) {
-            if (s.getDivision() != null && !s.getDivision().trim().isEmpty()) {
-                distinctDivisions.add(s.getDivision().trim());
-            }
-        }
-        if (distinctDivisions.isEmpty()) {
-            distinctDivisions.add("A");
-            distinctDivisions.add("B");
-        }
-        
-        model.addAttribute("results", filteredResults);
-        model.addAttribute("topper", topper);
-        model.addAttribute("selectedDivision", division);
-        model.addAttribute("selectedSemester", semester);
-        model.addAttribute("selectedSubject", subject);
-        
-        model.addAttribute("distinctSubjects", distinctSubjects);
-        model.addAttribute("distinctSemesters", distinctSemesters);
-        model.addAttribute("distinctDivisions", distinctDivisions);
-        
-        System.out.println("Results size: " + filteredResults.size());
-        
-        return "admin/view_results";
-    }
+    private void terminateOngoingSubmissionsForPaper(Paper paper) {
+        List<Submission> submissions = submissionRepository.findByPaperId(paper.getId());
+        if (submissions != null) {
+            for (Submission sub : submissions) {
+                if ("Ongoing".equals(sub.getStatus())) {
+                    sub.setStatus("Terminated");
+                    sub.setSubmittedAt(LocalDateTime.now());
+                    submissionRepository.save(sub);
 
-    @GetMapping("/results/pdf")
-    public void downloadResultsPdf(
-            @RequestParam(value = "division", required = false) String division,
-            @RequestParam(value = "semester", required = false) String semester,
-            @RequestParam(value = "subject", required = false) String subject,
-            HttpServletResponse response) throws IOException {
-        
-        List<Result> allResults = resultRepository.findAll();
-        List<Result> filteredResults = new ArrayList<>();
-        Result topper = null;
-        double maxObtained = -1;
-        
-        for (Result r : allResults) {
-            boolean matches = true;
-            if (division != null && !division.trim().isEmpty()) {
-                if (r.getDivision() == null || !division.equalsIgnoreCase(r.getDivision())) matches = false;
-            }
-            if (semester != null && !semester.trim().isEmpty()) {
-                if (r.getSemester() == null || !semester.equalsIgnoreCase(r.getSemester())) matches = false;
-            }
-            if (subject != null && !subject.trim().isEmpty()) {
-                if (r.getSubject() == null || !subject.equalsIgnoreCase(r.getSubject())) matches = false;
-            }
-            
-            if (matches) {
-                filteredResults.add(r);
-                if (r.getObtainedMarks() != null && r.getObtainedMarks() > maxObtained) {
-                    maxObtained = r.getObtainedMarks();
-                    topper = r;
+                    // Auto-create missing/skipped Answers with 0 marks
+                    List<Question> questions = questionRepository.findByPaperId(paper.getId());
+                    List<Answer> existingAnswers = answerRepository.findBySubmissionId(sub.getId());
+                    Set<Long> answeredQuestionIds = new java.util.HashSet<>();
+                    if (existingAnswers != null) {
+                        for (Answer ans : existingAnswers) {
+                            if (ans.getQuestion() != null) {
+                                answeredQuestionIds.add(ans.getQuestion().getId());
+                            }
+                        }
+                    }
+                    if (questions != null) {
+                        for (Question q : questions) {
+                            if (!answeredQuestionIds.contains(q.getId())) {
+                                Answer ans = new Answer();
+                                ans.setSubmission(sub);
+                                ans.setQuestion(q);
+                                ans.setQuestionText(q.getText());
+                                ans.setStudentAnswer("");
+                                ans.setMaxMarks(q.getMarks() != null ? q.getMarks() : 0.0);
+                                ans.setMarksObtained(0.0);
+                                ans.setUpdatedAt(LocalDateTime.now());
+                                answerRepository.save(ans);
+                            }
+                        }
+                    }
+
+                    // Create Result record for terminated exam
+                    Result result = resultRepository.findBySubmissionId(sub.getId()).orElse(new Result());
+                    result.setSubmission(sub);
+                    result.setObtainedMarks(0.0);
+                    result.setTotalMarks(paper.getTotalMarks() != null ? paper.getTotalMarks() : 100.0);
+                    result.setResultStatus("TERMINATED");
+                    result.setPercentage(0.0);
+                    result.setGrade("F");
+                    result.setTerminationReason("Exam ended by administrator or recovery period expired");
+                    result.setTerminatedAt(LocalDateTime.now());
+
+                    if (sub.getStudent() != null) {
+                        result.setEnrollmentNo(sub.getStudent().getEnrollmentNo());
+                        result.setStudentName(sub.getStudent().getStudentName());
+                        result.setDivision(sub.getStudent().getDivision());
+                        result.setSemester(sub.getStudent().getSemester());
+                        result.setRollNo(sub.getStudent().getRollNo());
+                    }
+                    result.setSubjectName(paper.getSubject());
+                    result.setExamName(paper.getCourse() != null ? paper.getCourse() : "Theory Exam");
+
+                    resultRepository.save(result);
                 }
             }
-        }
-        
-        response.setContentType("application/pdf");
-        String headerKey = "Content-Disposition";
-        String headerValue = "attachment; filename=results_" + 
-                             (division != null ? division : "all") + ".pdf";
-        response.setHeader(headerKey, headerValue);
-        
-        Document document = new Document();
-        try {
-            PdfWriter.getInstance(document, response.getOutputStream());
-            document.open();
-            
-            // Fonts
-            Font fontUniv = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
-            Font fontHeader = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
-            Font fontBody = FontFactory.getFont(FontFactory.HELVETICA, 10);
-            Font fontBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
-            
-            // University Name
-            Paragraph univPara = new Paragraph("UNIVERSITY THEORY EXAMINATION RESULTS", fontUniv);
-            univPara.setAlignment(Element.ALIGN_CENTER);
-            univPara.setSpacingAfter(20);
-            document.add(univPara);
-            
-            // Meta Info
-            Paragraph metaPara = new Paragraph();
-            metaPara.setFont(fontBold);
-            metaPara.add("Subject: " + (subject != null && !subject.isEmpty() ? subject : "All Subjects") + "\n");
-            metaPara.add("Semester: " + (semester != null && !semester.isEmpty() ? semester : "All Semesters") + "\n");
-            metaPara.add("Division: " + (division != null && !division.isEmpty() ? division : "All Divisions") + "\n");
-            metaPara.setSpacingAfter(15);
-            document.add(metaPara);
-            
-            // Topper Highlight
-            if (topper != null) {
-                Paragraph topperPara = new Paragraph("🏆 Topper: " + topper.getStudentName() + 
-                                                     " (" + topper.getObtainedMarks() + " Marks)", fontBold);
-                topperPara.setAlignment(Element.ALIGN_LEFT);
-                topperPara.setSpacingAfter(15);
-                document.add(topperPara);
-            }
-            
-            // Table
-            PdfPTable table = new PdfPTable(4);
-            table.setWidthPercentage(100f);
-            table.setWidths(new float[] {2.5f, 4.0f, 2.0f, 1.5f});
-            
-            // Table Headers
-            PdfPCell cell = new PdfPCell(new Phrase("Enrollment No", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            cell = new PdfPCell(new Phrase("Student Name", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            cell = new PdfPCell(new Phrase("Marks", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            cell = new PdfPCell(new Phrase("Result", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            // Table Body
-            for (Result r : filteredResults) {
-                table.addCell(new Phrase(r.getEnrollmentNo() != null ? r.getEnrollmentNo() : "N/A", fontBody));
-                table.addCell(new Phrase(r.getStudentName() != null ? r.getStudentName() : "N/A", fontBody));
-                table.addCell(new Phrase(r.getObtainedMarks() + " / " + r.getMaxTotalMarks(), fontBody));
-                table.addCell(new Phrase(r.getStatus() != null ? r.getStatus() : "N/A", fontBody));
-            }
-            
-            document.add(table);
-            
-        } catch (DocumentException e) {
-            e.printStackTrace();
-        } finally {
-            document.close();
+            resultRepository.flush();
         }
     }
 
-    @PostMapping("/results/pdf/bulk")
-    public void downloadBulkResultsPdf(
-            @RequestParam("resultIds") List<Long> resultIds,
-            HttpServletResponse response) throws IOException {
-        
-        List<Result> selectedResults = new ArrayList<>();
-        Result topper = null;
-        double maxObtained = -1;
-        
-        for (Long id : resultIds) {
-            Optional<Result> oRes = resultRepository.findById(id);
-            if (oRes.isPresent()) {
-                Result r = oRes.get();
-                selectedResults.add(r);
-                if (r.getObtainedMarks() != null && r.getObtainedMarks() > maxObtained) {
-                    maxObtained = r.getObtainedMarks();
-                    topper = r;
-                }
-            }
-        }
-        
-        response.setContentType("application/pdf");
-        String headerKey = "Content-Disposition";
-        String headerValue = "attachment; filename=bulk_results.pdf";
-        response.setHeader(headerKey, headerValue);
-        
-        Document document = new Document();
-        try {
-            PdfWriter.getInstance(document, response.getOutputStream());
-            document.open();
-            
-            // Fonts
-            Font fontUniv = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
-            Font fontHeader = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
-            Font fontBody = FontFactory.getFont(FontFactory.HELVETICA, 10);
-            Font fontBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
-            
-            // University Name
-            Paragraph univPara = new Paragraph("UNIVERSITY THEORY EXAMINATION RESULTS (BULK EXPORT)", fontUniv);
-            univPara.setAlignment(Element.ALIGN_CENTER);
-            univPara.setSpacingAfter(20);
-            document.add(univPara);
-            
-            // Meta Info
-            Paragraph metaPara = new Paragraph();
-            metaPara.setFont(fontBold);
-            metaPara.add("Total Selected Students: " + selectedResults.size() + "\n");
-            metaPara.setSpacingAfter(15);
-            document.add(metaPara);
-            
-            // Topper Highlight
-            if (topper != null) {
-                Paragraph topperPara = new Paragraph("🏆 Best Performer (Selected): " + topper.getStudentName() + 
-                                                     " (" + topper.getObtainedMarks() + " Marks in " + topper.getSubject() + ")", fontBold);
-                topperPara.setAlignment(Element.ALIGN_LEFT);
-                topperPara.setSpacingAfter(15);
-                document.add(topperPara);
-            }
-            
-            // Table
-            PdfPTable table = new PdfPTable(5);
-            table.setWidthPercentage(100f);
-            table.setWidths(new float[] {2.0f, 3.5f, 2.5f, 2.0f, 1.5f});
-            
-            // Table Headers
-            PdfPCell cell = new PdfPCell(new Phrase("Enrollment No", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            cell = new PdfPCell(new Phrase("Student Name", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            cell = new PdfPCell(new Phrase("Subject", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            cell = new PdfPCell(new Phrase("Marks", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            cell = new PdfPCell(new Phrase("Result", fontHeader));
-            cell.setPadding(6);
-            table.addCell(cell);
-            
-            // Table Body
-            for (Result r : selectedResults) {
-                table.addCell(new Phrase(r.getEnrollmentNo() != null ? r.getEnrollmentNo() : "N/A", fontBody));
-                table.addCell(new Phrase(r.getStudentName() != null ? r.getStudentName() : "N/A", fontBody));
-                table.addCell(new Phrase(r.getSubject() != null ? r.getSubject() : "N/A", fontBody));
-                table.addCell(new Phrase(r.getObtainedMarks() + " / " + r.getMaxTotalMarks(), fontBody));
-                table.addCell(new Phrase(r.getStatus() != null ? r.getStatus() : "N/A", fontBody));
-            }
-            
-            document.add(table);
-            
-        } catch (DocumentException e) {
-            e.printStackTrace();
-        } finally {
-            document.close();
-        }
-    }
 }

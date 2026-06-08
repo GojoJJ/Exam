@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface AnswerRepository extends JpaRepository<Answer, Long> {
     List<Answer> findBySubmissionId(Long submissionId);
+    List<Answer> findByExamAttemptId(Long examAttemptId);
     Optional<Answer> findFirstByExamAttemptIdAndQuestionIdOrderByUpdatedAtDesc(Long examAttemptId, Long questionId);
     Optional<Answer> findFirstBySubmissionIdAndQuestionIdOrderByUpdatedAtDesc(Long submissionId, Long questionId);
 }

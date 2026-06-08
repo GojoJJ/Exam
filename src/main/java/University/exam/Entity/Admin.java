@@ -14,6 +14,7 @@ public class Admin {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
+    @jakarta.persistence.Column(name = "admin_name")
     private String adminName;
     private String password;
     private String email;

@@ -21,51 +21,72 @@ public class Result {
     @JoinColumn(name = "submission_id")
     private Submission submission;
     
-    private Double totalMarks;
-    private Double maxTotalMarks;
-    private LocalDateTime evaluatedAt;
-
     private String enrollmentNo;
     private String studentName;
-    private String subject;
-    private String semester;
     private String division;
+    private String semester;
+    private String subjectName;
+    private String examName;
     private Double obtainedMarks;
-    private String status;
+    private Double totalMarks;
+    private String resultStatus;
+    private LocalDateTime evaluatedAt = LocalDateTime.now();
+    private String grade;
+    private Double percentage;
+    private String terminationReason;
+    private LocalDateTime terminatedAt;
+    private Integer rollNo;
 
     public Result() {}
 
-    public Result(Long id, Submission submission, Double totalMarks, Double maxTotalMarks, LocalDateTime evaluatedAt) {
-        this.id = id;
-        this.submission = submission;
-        this.totalMarks = totalMarks;
-        this.maxTotalMarks = maxTotalMarks;
-        this.evaluatedAt = evaluatedAt;
-    }
+    public String getGrade() { return grade; }
+    public void setGrade(String grade) { this.grade = grade; }
+
+    public Double getPercentage() { return percentage; }
+    public void setPercentage(Double percentage) { this.percentage = percentage; }
+
+    public String getTerminationReason() { return terminationReason; }
+    public void setTerminationReason(String terminationReason) { this.terminationReason = terminationReason; }
+
+    public LocalDateTime getTerminatedAt() { return terminatedAt; }
+    public void setTerminatedAt(LocalDateTime terminatedAt) { this.terminatedAt = terminatedAt; }
+
+    public Integer getRollNo() { return rollNo; }
+    public void setRollNo(Integer rollNo) { this.rollNo = rollNo; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    
     public Submission getSubmission() { return submission; }
     public void setSubmission(Submission submission) { this.submission = submission; }
-    public Double getTotalMarks() { return totalMarks; }
-    public void setTotalMarks(Double totalMarks) { this.totalMarks = totalMarks; }
-    public Double getMaxTotalMarks() { return maxTotalMarks; }
-    public void setMaxTotalMarks(Double maxTotalMarks) { this.maxTotalMarks = maxTotalMarks; }
-    public LocalDateTime getEvaluatedAt() { return evaluatedAt; }
-    public void setEvaluatedAt(LocalDateTime evaluatedAt) { this.evaluatedAt = evaluatedAt; }
 
     public String getEnrollmentNo() { return enrollmentNo; }
     public void setEnrollmentNo(String enrollmentNo) { this.enrollmentNo = enrollmentNo; }
+
     public String getStudentName() { return studentName; }
     public void setStudentName(String studentName) { this.studentName = studentName; }
-    public String getSubject() { return subject; }
-    public void setSubject(String subject) { this.subject = subject; }
-    public String getSemester() { return semester; }
-    public void setSemester(String semester) { this.semester = semester; }
+
     public String getDivision() { return division; }
     public void setDivision(String division) { this.division = division; }
+
+    public String getSemester() { return semester; }
+    public void setSemester(String semester) { this.semester = semester; }
+
+    public String getSubjectName() { return subjectName; }
+    public void setSubjectName(String subjectName) { this.subjectName = subjectName; }
+
+    public String getExamName() { return examName; }
+    public void setExamName(String examName) { this.examName = examName; }
+
     public Double getObtainedMarks() { return obtainedMarks; }
     public void setObtainedMarks(Double obtainedMarks) { this.obtainedMarks = obtainedMarks; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+
+    public Double getTotalMarks() { return totalMarks; }
+    public void setTotalMarks(Double totalMarks) { this.totalMarks = totalMarks; }
+
+    public String getResultStatus() { return resultStatus; }
+    public void setResultStatus(String resultStatus) { this.resultStatus = resultStatus; }
+
+    public LocalDateTime getEvaluatedAt() { return evaluatedAt; }
+    public void setEvaluatedAt(LocalDateTime evaluatedAt) { this.evaluatedAt = evaluatedAt; }
 }

@@ -6,6 +6,17 @@
     <title>Theory Exam Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Drawing Canvas Styles -->
+    <link href="/css/canvas.css" rel="stylesheet">
+    <link href="/css/drawing.css?v=1.0.3" rel="stylesheet">
+    <!-- TinyMCE and DOMPurify CDNs for rich text editing and secure HTML sanitization -->
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js" referrerpolicy="origin"></script>
+    <!-- Fabric.js and dynamic whiteboard drawing scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script src="/js/drawing.js?v=1.0.3"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -243,10 +254,12 @@
     const type = document.getElementById('type').value;
     let remainingSeconds = parseInt(document.getElementById('remainingSeconds').value);
     const questionsContainer = document.getElementById('questionsContainer');
+    window.lastActiveQuestionId = null;
+    window.isNavigating = false;
     
     // Prevent leaving page
     window.onbeforeunload = function() {
-        if(remainingSeconds > 0) return "You have an ongoing exam. Progress will be lost.";
+        if(remainingSeconds > 0 && !window.isNavigating) return "You have an ongoing exam. Progress will be lost.";
     };
 
     // Load Questions
@@ -294,7 +307,7 @@
                 }
 
                 const savedAns = q.savedAnswer ? q.savedAnswer : '';
-                const optionalLabel = q.isOptional ? '<span class="badge bg-warning text-dark me-2 shadow-sm">OR</span>' : '';
+                const optionalLabel = '';
                 
                 let answerTag = '';
                 if (q.marks <= 2) answerTag = '<span class="badge bg-info text-dark ms-2" style="font-size: 0.7rem;">Short Answer</span>';
@@ -311,28 +324,45 @@
                             </div>
                         </div>
                         <div class="question-text">${optionalLabel}${q.text}${answerTag}</div>
-                        <textarea class="answer-area" data-qid="${q.id}" placeholder="Type your detailed theory answer here...">${savedAns}</textarea>
+                        <textarea class="answer-area" data-qid="${q.id}" placeholder="Type your detailed theory answer here..."></textarea>
                         <div class="save-status" id="status-${q.id}"></div>
                     </div>
                 `;
             });
             
             if (currentGroup !== '') {
-                html += `</div></div>`; // Close final section card
+                html += `</div></div>`; // Close previous section card
             }
             
             questionsContainer.innerHTML = html;
-            
-            // Auto-save every 15 seconds (as per prompt intervals)
-            setInterval(saveAllAnswers, 15000); 
 
-            // Immediate save feedback on typing (debounce)
+            // Programmatically populate saved answer values to avoid raw HTML string literal parsing breakdown
+            questions.forEach(q => {
+                const textarea = document.querySelector(`textarea[data-qid="${q.id}"]`);
+                if (textarea) {
+                    textarea.value = q.savedAnswer ? q.savedAnswer : '';
+                }
+            });
+            
+            // Auto-save every 5 seconds (as per prompt intervals)
+            setInterval(saveAllAnswers, 5000); 
+
+            // Track active question on focus and input
             document.querySelectorAll('.answer-area').forEach(textarea => {
+                textarea.addEventListener('focus', function() {
+                    window.lastActiveQuestionId = this.getAttribute('data-qid');
+                });
+                textarea.addEventListener('input', function() {
+                    window.lastActiveQuestionId = this.getAttribute('data-qid');
+                });
                 textarea.addEventListener('input', debounce(function() {
                     saveAnswer(this.getAttribute('data-qid'), this.value);
                 }, 3000));
             });
 
+            if (window.initializeRichEditors) {
+                window.initializeRichEditors();
+            }
             document.getElementById('loadingOverlay').style.display = 'none';
             startTimer();
 
@@ -351,9 +381,13 @@
 
     async function saveAllAnswers() {
         if(remainingSeconds <= 0) return;
-        document.querySelectorAll('.answer-area').forEach(ta => {
-            saveAnswer(ta.getAttribute('data-qid'), ta.value);
-        });
+        const promises = Array.from(document.querySelectorAll('.answer-area')).map(ta => 
+            saveAnswer(ta.getAttribute('data-qid'), ta.value)
+        );
+        if (window.saveAllCanvasesImmediately) {
+            promises.push(window.saveAllCanvasesImmediately());
+        }
+        return Promise.all(promises);
     }
 
     async function saveAnswer(questionId, answer) {
@@ -361,7 +395,13 @@
         if(statusEl) statusEl.innerHTML = '<span class="status-saving">Saving...</span>';
         
         try {
-            const body = { questionId, answer };
+            const body = { 
+                questionId, 
+                answer,
+                remainingSeconds: remainingSeconds,
+                currentSection: 0,
+                currentQuestionId: window.lastActiveQuestionId || questionId
+            };
             if (type === 'paper') body.submissionId = attemptId;
             else body.attemptId = attemptId;
 
@@ -421,10 +461,14 @@
     }
 
     async function submitExam() {
+        window.isNavigating = true;
         document.querySelectorAll('.answer-area').forEach(ta => ta.disabled = true);
         const finalSave = Array.from(document.querySelectorAll('.answer-area')).map(ta => 
             saveAnswer(ta.getAttribute('data-qid'), ta.value)
         );
+        if (window.saveAllCanvasesImmediately) {
+            finalSave.push(window.saveAllCanvasesImmediately());
+        }
         await Promise.all(finalSave);
         
         try {
@@ -437,15 +481,38 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-            if (response.ok) window.location.href = '/student/exam/dashboard';
+            if (response.ok) window.location.href = '/student/exam/feedback';
         } catch (error) {
             alert("Error submitting exam.");
         }
     }
 
+    // Handle save before browser unload using sendBeacon
+    window.addEventListener('unload', function() {
+        if (remainingSeconds > 0 && !window.isNavigating) {
+            document.querySelectorAll('.answer-area').forEach(ta => {
+                const body = {
+                    questionId: ta.getAttribute('data-qid'),
+                    answer: ta.value,
+                    remainingSeconds: remainingSeconds,
+                    currentSection: 0,
+                    currentQuestionId: window.lastActiveQuestionId || ta.getAttribute('data-qid')
+                };
+                if (type === 'paper') body.submissionId = attemptId;
+                else body.attemptId = attemptId;
+
+                const blob = new Blob([JSON.stringify(body)], { type: 'application/json' });
+                navigator.sendBeacon('/api/answer/save', blob);
+            });
+        }
+    });
+
     window.onload = loadQuestions;
 </script>
 
+<!-- Drawing Canvas JS Engine -->
+<script src="/js/canvas.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

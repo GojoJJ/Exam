@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PaperRepository extends JpaRepository<Paper, Long> {
+    java.util.List<Paper> findByAdminId(Long adminId);
+    long countByAdminId(Long adminId);
 }
